@@ -320,8 +320,11 @@ export const DROP_OFF_POINTS: DropOffPoint[] = [
     id: 'dp-1',
     name: 'Cooperativa Recicla Centro',
     district: 'Vila Mariana',
+    address: 'Rua Domingos de Morais, 1140',
     distanceKm: '0,6 km',
     hours: 'Seg–Sáb · 08h às 17h',
+    mapX: 34,
+    mapY: 42,
     acceptedMaterials: [
       MaterialType.PET,
       MaterialType.ALUMINUM,
@@ -333,8 +336,11 @@ export const DROP_OFF_POINTS: DropOffPoint[] = [
     id: 'dp-2',
     name: 'Ecoponto Praça das Águas',
     district: 'Pinheiros',
+    address: 'Av. Pedroso de Morais, 490',
     distanceKm: '1,4 km',
     hours: 'Todos os dias · 07h às 20h',
+    mapX: 68,
+    mapY: 30,
     acceptedMaterials: [
       MaterialType.GLASS,
       MaterialType.CARDBOARD,
@@ -346,16 +352,22 @@ export const DROP_OFF_POINTS: DropOffPoint[] = [
     id: 'dp-3',
     name: 'Ponto Orgânico Horta Viva',
     district: 'Jardins',
+    address: 'Al. Lorena, 820 (Praça Comunitária)',
     distanceKm: '1,9 km',
     hours: 'Qua e Sáb · 09h às 14h',
+    mapX: 25,
+    mapY: 72,
     acceptedMaterials: [MaterialType.ORGANIC],
   },
   {
     id: 'dp-4',
     name: 'Atelier Circular Bairro Verde',
     district: 'Moema',
+    address: 'Av. Juriti, 315',
     distanceKm: '2,3 km',
     hours: 'Ter–Sáb · 10h às 18h',
+    mapX: 74,
+    mapY: 74,
     acceptedMaterials: [MaterialType.TEXTILE, MaterialType.PET, MaterialType.GLASS],
   },
 ];
@@ -422,9 +434,11 @@ export const TRIAGE_CATALOG: TriageMaterialItem[] = [
     id: 'tr-pet',
     name: 'Garrafa PET Transparente (Refrigerante / Água)',
     material: MaterialType.PET,
+    materialGrade: 'PET Grau 1 · Alta reciclabilidade',
     recyclable: 'Reciclável',
     binColor: '#0284C7',
     binLabel: 'Lixeira Vermelha / Plásticos',
+    nearestDropOffId: 'dp-1',
     cleanlinessTip:
       'Escorra o líquido restante, dê um enxágue curto com água de reuso, amasse para reduzir volume e recoloque a tampa.',
     scrapArtIdea:
@@ -437,9 +451,11 @@ export const TRIAGE_CATALOG: TriageMaterialItem[] = [
     id: 'tr-alu',
     name: 'Lata de Alumínio e Lata de Conserva',
     material: MaterialType.ALUMINUM,
+    materialGrade: 'Alumínio / Aço · 100% infinito',
     recyclable: 'Reciclável',
     binColor: '#475569',
     binLabel: 'Lixeira Amarela / Metais',
+    nearestDropOffId: 'dp-1',
     cleanlinessTip:
       'Enxágue o interior para evitar atração de insetos. Em latas de conserva, dobre a borda cortante para dentro com cuidado.',
     scrapArtIdea:
@@ -452,9 +468,11 @@ export const TRIAGE_CATALOG: TriageMaterialItem[] = [
     id: 'tr-glass',
     name: 'Pote de Vidro de Azeitona, Café ou Conserva',
     material: MaterialType.GLASS,
+    materialGrade: 'Vidro Sodo-Cálcico · Embalagem',
     recyclable: 'Reciclável',
     binColor: '#059669',
     binLabel: 'Lixeira Verde / Vidros',
+    nearestDropOffId: 'dp-2',
     cleanlinessTip:
       'Lave com água de reuso e retire a tampa metálica (que também é reciclável, porém vai junto aos metais). Se estiver quebrado, embrulhe em papelão.',
     scrapArtIdea:
@@ -467,9 +485,11 @@ export const TRIAGE_CATALOG: TriageMaterialItem[] = [
     id: 'tr-cardboard',
     name: 'Caixa de Papelão Ondulado e Delivery',
     material: MaterialType.CARDBOARD,
+    materialGrade: 'Celulose Ondulada · Fibra longa',
     recyclable: 'Reciclável',
     binColor: '#006398',
     binLabel: 'Lixeira Azul / Papéis',
+    nearestDropOffId: 'dp-1',
     cleanlinessTip:
       'Remova fitas adesivas grandes e desmonte a caixa deixando-a plana. Se houver gordura (como fundo de pizza), recorte somente a parte limpa.',
     scrapArtIdea:
@@ -482,9 +502,11 @@ export const TRIAGE_CATALOG: TriageMaterialItem[] = [
     id: 'tr-organic',
     name: 'Cascas de Frutas, Talos e Borra de Café',
     material: MaterialType.ORGANIC,
+    materialGrade: 'Matéria Orgânica · Rica em nitrogênio',
     recyclable: 'Compostável',
     binColor: '#15803D',
     binLabel: 'Composteira / Lixeira Marrom',
+    nearestDropOffId: 'dp-3',
     cleanlinessTip:
       'Mantenha separado dos recicláveis secos. Equilibre 1 parte de resíduo úmido para 2 partes de folhas secas ou serragem.',
     scrapArtIdea:
@@ -497,9 +519,11 @@ export const TRIAGE_CATALOG: TriageMaterialItem[] = [
     id: 'tr-dirty-paper',
     name: 'Guardanapo Engordurado, Papel Toalha e Espelho Quebrado',
     material: MaterialType.TEXTILE,
+    materialGrade: 'Uso Misto / Contaminado',
     recyclable: 'Rejeito (Não Reciclável)',
     binColor: '#BA1A1A',
     binLabel: 'Rejeito Comum (Descarte Seguro)',
+    nearestDropOffId: 'dp-4',
     cleanlinessTip:
       'Não coloque na coleta seletiva. Guardanapos com óleo vão para o rejeito (ou em pequenas quantidades na compostagem seca sem químicos). Espelhos devem ser embalados em caixa fechada identificada.',
     scrapArtIdea:

@@ -1,5 +1,5 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {ArrowUpDown, Search, Sparkles} from 'lucide-react';
+import {ArrowUpDown, ScanSearch, Search, Sparkles, X} from 'lucide-react';
 import {
   DROP_OFF_POINTS,
   INITIAL_CHALLENGES,
@@ -25,6 +25,24 @@ import {PostDetailModal} from './components/PostDetailModal';
 import {CreatePostModal} from './components/CreatePostModal';
 import {MobileBottomNav} from './components/MobileBottomNav';
 import {AuthUser, LoginScreen} from './components/LoginScreen';
+import {EcopontosMapModal} from './components/EcopontosMapModal';
+import {ProfileModal} from './components/ProfileModal';
+import {isSupabaseConfigured} from './lib/supabase';
+import {
+  deleteSupabasePost,
+  fetchSupabaseChallenges,
+  fetchSupabaseHabits,
+  fetchSupabasePostInteractions,
+  fetchSupabasePosts,
+  insertSupabaseComment,
+  insertSupabasePost,
+  signOutSupabase,
+  updateSupabasePostCounters,
+  updateSupabaseProfile,
+  upsertSupabaseChallengeProgress,
+  upsertSupabaseHabit,
+  upsertSupabasePostInteraction,
+} from './services/ecoRepository';
 
 const STORAGE_KEYS = {
   POSTS: 'reciclaoq_posts_v1',
@@ -63,6 +81,9 @@ export default function App() {
   );
   const [searchQuery, setSearchQuery] = useState('');
   const [sortBy, setSortBy] = useState<'recent' | 'popular'>('recent');
+  const [difficultyFilter, setDifficultyFilter] = useState<
+    'todas' | 'Fácil' | 'Intermediário'
+  >('todas');
 
   const [detailPostId, setDetailPostId] = useState<string | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
@@ -72,6 +93,12 @@ export default function App() {
   const [composerPrefillCategory, setComposerPrefillCategory] = useState<
     Exclude<PostCategory, PostCategory.ALL> | undefined
   >(undefined);
+  const [mapModalState, setMapModalState] = useState<{
+    isOpen: boolean;
+    material: MaterialType;
+    pointId?: string;
+  }>({isOpen: false, material: MaterialType.ALL});
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   useEffect(() => {
     try {
@@ -100,6 +127,71 @@ export default function App() {
     }
   }, [challenges]);
 
+  useEffect(() => {
+    if (!currentUser || !isSupabaseConfigured) return;
+    let active = true;
+
+    (async () => {
+      const [remotePosts, remoteHabits, remoteInteractions, remoteChallenges] =
+        await Promise.all([
+          fetchSupabasePosts(),
+          fetchSupabaseHabits(currentUser.id, INITIAL_HABITS),
+          fetchSupabasePostInteractions(currentUser.id),
+          fetchSupabaseChallenges(currentUser.id, INITIAL_CHALLENGES),
+        ]);
+      if (!active) return;
+
+      if (remotePosts && remotePosts.length > 0) {
+        const merged = remotePosts.map((post) => {
+          const interaction = remoteInteractions?.get(post.id);
+          return interaction
+            ? {
+                ...post,
+                likedByMe: interaction.liked,
+                verifiedByMe: interaction.verified,
+                savedByMe: interaction.saved,
+              }
+            : post;
+        });
+        setPosts(merged);
+      } else if (remoteInteractions && remoteInteractions.size > 0) {
+        setPosts((prev) =>
+          prev.map((post) => {
+            const interaction = remoteInteractions.get(post.id);
+            return interaction
+              ? {
+                  ...post,
+                  likedByMe: interaction.liked,
+                  verifiedByMe: interaction.verified,
+                  savedByMe: interaction.saved,
+                }
+              : post;
+          }),
+        );
+      }
+      if (remoteHabits) {
+        setHabits(remoteHabits);
+      }
+      if (remoteChallenges) {
+        setChallenges(remoteChallenges);
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [currentUser]);
+
+  const handleLogout = () => {
+    void signOutSupabase();
+    setCurrentUser(null);
+  };
+
+  const handleUpdateUser = (updated: AuthUser) => {
+    setCurrentUser(updated);
+    void updateSupabaseProfile(updated);
+  };
+
   const handleSelectSection = (section: NavSection) => {
     setActiveSection(section);
     if (section === 'scrap-art') {
@@ -115,10 +207,18 @@ export default function App() {
       prev.map((post) => {
         if (post.id !== postId) return post;
         const liked = !post.likedByMe;
+        const nextLikes = Math.max(0, post.likes + (liked ? 1 : -1));
+        void updateSupabasePostCounters(postId, nextLikes, post.verifiedCount);
+        void upsertSupabasePostInteraction(currentUser?.id, {
+          postId,
+          liked,
+          verified: Boolean(post.verifiedByMe),
+          saved: Boolean(post.savedByMe),
+        });
         return {
           ...post,
           likedByMe: liked,
-          likes: Math.max(0, post.likes + (liked ? 1 : -1)),
+          likes: nextLikes,
         };
       }),
     );
@@ -129,10 +229,21 @@ export default function App() {
       prev.map((post) => {
         if (post.id !== postId) return post;
         const verified = !post.verifiedByMe;
+        const nextVerified = Math.max(
+          0,
+          post.verifiedCount + (verified ? 1 : -1),
+        );
+        void updateSupabasePostCounters(postId, post.likes, nextVerified);
+        void upsertSupabasePostInteraction(currentUser?.id, {
+          postId,
+          liked: Boolean(post.likedByMe),
+          verified,
+          saved: Boolean(post.savedByMe),
+        });
         return {
           ...post,
           verifiedByMe: verified,
-          verifiedCount: Math.max(0, post.verifiedCount + (verified ? 1 : -1)),
+          verifiedCount: nextVerified,
         };
       }),
     );
@@ -140,57 +251,84 @@ export default function App() {
 
   const handleToggleSave = (postId: string) => {
     setPosts((prev) =>
-      prev.map((post) =>
-        post.id === postId ? {...post, savedByMe: !post.savedByMe} : post,
-      ),
+      prev.map((post) => {
+        if (post.id !== postId) return post;
+        const saved = !post.savedByMe;
+        void upsertSupabasePostInteraction(currentUser?.id, {
+          postId,
+          liked: Boolean(post.likedByMe),
+          verified: Boolean(post.verifiedByMe),
+          saved,
+        });
+        return {...post, savedByMe: saved};
+      }),
     );
   };
 
   const handleAddComment = (postId: string, content: string) => {
+    const newComment = {
+      id: `comment-${Date.now()}`,
+      authorName: currentUser?.name || 'Você',
+      authorHandle: `@${(currentUser?.name || 'reciclaoq').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 14)}`,
+      authorRole: currentUser?.neighborhood || 'Comunidade',
+      createdAt: 'Agora',
+      content,
+    };
+    void insertSupabaseComment(postId, newComment, currentUser?.id);
+
     setPosts((prev) =>
       prev.map((post) => {
         if (post.id !== postId) return post;
         return {
           ...post,
-          comments: [
-            ...post.comments,
-            {
-              id: `comment-${Date.now()}`,
-              authorName: currentUser?.name || 'Você',
-              authorHandle: `@${(currentUser?.name || 'reciclaoq').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 14)}`,
-              authorRole: currentUser?.neighborhood || 'Comunidade',
-              createdAt: 'Agora',
-              content,
-            },
-          ],
+          comments: [...post.comments, newComment],
         };
       }),
     );
   };
 
   const handlePublishPost = (newPost: EcoPost) => {
-    setPosts((prev) => [newPost, ...prev]);
+    const postWithOwner: EcoPost = {
+      ...newPost,
+      userId: currentUser?.id,
+    };
+    void insertSupabasePost(postWithOwner, currentUser?.id);
+    setPosts((prev) => [postWithOwner, ...prev]);
     setActiveSection(
-      newPost.category === PostCategory.SCRAP_ART ? 'scrap-art' : 'feed',
+      postWithOwner.category === PostCategory.SCRAP_ART ? 'scrap-art' : 'feed',
     );
     setSelectedCategory(
-      newPost.category === PostCategory.SCRAP_ART
+      postWithOwner.category === PostCategory.SCRAP_ART
         ? PostCategory.SCRAP_ART
         : PostCategory.ALL,
     );
     setSelectedMaterial(MaterialType.ALL);
   };
 
+  const handleDeletePost = (postId: string) => {
+    void deleteSupabasePost(postId, currentUser?.id);
+    setPosts((prev) => prev.filter((p) => p.id !== postId));
+    setDetailPostId(null);
+  };
+
   const handleToggleHabit = (habitId: string) => {
     setHabits((prev) =>
-      prev.map((habit) =>
-        habit.id === habitId ? {...habit, completed: !habit.completed} : habit,
-      ),
+      prev.map((habit) => {
+        if (habit.id !== habitId) return habit;
+        const nextCompleted = !habit.completed;
+        void upsertSupabaseHabit(currentUser?.id, habitId, nextCompleted);
+        return {...habit, completed: nextCompleted};
+      }),
     );
   };
 
   const handleResetHabits = () => {
-    setHabits((prev) => prev.map((habit) => ({...habit, completed: false})));
+    setHabits((prev) =>
+      prev.map((habit) => {
+        void upsertSupabaseHabit(currentUser?.id, habit.id, false);
+        return {...habit, completed: false};
+      }),
+    );
   };
 
   const handleToggleChallengeJoin = (challengeId: string) => {
@@ -198,6 +336,12 @@ export default function App() {
       prev.map((ch) => {
         if (ch.id !== challengeId) return ch;
         const joining = !ch.joined;
+        void upsertSupabaseChallengeProgress(
+          currentUser?.id,
+          challengeId,
+          joining,
+          ch.completedSteps,
+        );
         return {
           ...ch,
           joined: joining,
@@ -215,6 +359,12 @@ export default function App() {
         const nextSteps = exists
           ? ch.completedSteps.filter((s) => s !== stepIndex)
           : [...ch.completedSteps, stepIndex];
+        void upsertSupabaseChallengeProgress(
+          currentUser?.id,
+          challengeId,
+          true,
+          nextSteps,
+        );
         return {
           ...ch,
           joined: true,
@@ -254,6 +404,13 @@ export default function App() {
       ) {
         return false;
       }
+      if (
+        activeSection === 'scrap-art' &&
+        difficultyFilter !== 'todas' &&
+        post.difficulty !== difficultyFilter
+      ) {
+        return false;
+      }
       if (q) {
         const hay = [
           post.title,
@@ -281,6 +438,7 @@ export default function App() {
     activeSection,
     selectedCategory,
     selectedMaterial,
+    difficultyFilter,
     searchQuery,
     sortBy,
   ]);
@@ -299,10 +457,19 @@ export default function App() {
     0,
   );
 
-  const isFeedLikeView =
-    activeSection === 'feed' ||
-    activeSection === 'scrap-art' ||
-    activeSection === 'saved';
+  const completedHabits = habits.filter((h) => h.completed);
+  const habitPoints = completedHabits.reduce((sum, h) => sum + h.points, 0);
+  const habitKg = completedHabits.reduce((sum, h) => sum + h.kgSaved, 0);
+  const totalUserPoints = 140 + habitPoints + bonusPoints;
+  const totalUserKg = 3.4 + habitKg + bonusKg;
+  const savedPosts = posts.filter((p) => p.savedByMe);
+
+  const openDropOffMap = (
+    material: MaterialType = MaterialType.ALL,
+    pointId?: string,
+  ) => {
+    setMapModalState({isOpen: true, material, pointId});
+  };
 
   if (!currentUser) {
     return <LoginScreen onLogin={setCurrentUser} />;
@@ -339,12 +506,14 @@ export default function App() {
 
           {/* Center Feed / Studio / Viewfinder / Challenges Pane */}
           <div className="lg:col-span-6 space-y-5 min-w-0">
-            {isFeedLikeView && (
+            {(activeSection === 'feed' ||
+              activeSection === 'scrap-art' ||
+              activeSection === 'saved') && (
               <>
                 {/* Editorial Intro + Search + Segmented Category Bar */}
                 <section className="eco-card rounded-3xl p-5 sm:p-6">
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#0b1c30] text-balance">
                         {activeSection === 'scrap-art'
                           ? 'Oficina de Arte com Sucata'
@@ -360,6 +529,17 @@ export default function App() {
                             : 'Compartilhe soluções simples de separação, redução de lixo doméstico e arte feita com sucatas.'}
                       </p>
                     </div>
+
+                    {activeSection === 'feed' && (
+                      <button
+                        type="button"
+                        onClick={() => handleSelectSection('triage')}
+                        className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-[#e0f2fe] px-3.5 py-2 text-xs font-bold text-[#006398] hover:bg-[#cce5ff] whitespace-nowrap shrink-0 transition-colors"
+                      >
+                        <ScanSearch className="h-4 w-4" aria-hidden="true" />
+                        <span>Escanear material</span>
+                      </button>
+                    )}
                   </div>
 
                   {/* Pill Search Bar */}
@@ -369,13 +549,23 @@ export default function App() {
                       aria-hidden="true"
                     />
                     <input
-                      type="search"
+                      type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Buscar por garrafa PET, composteira, lata, papelão..."
                       aria-label="Buscar dicas e projetos"
-                      className="min-h-[44px] w-full rounded-full border border-[#e2e8f0] bg-[#f8fafc] pl-11 pr-4 text-sm text-[#0b1c30] placeholder:text-[#6d7a72] transition-all focus:border-[#0ea5e9] focus:bg-white focus:outline-none focus:ring-3 focus:ring-[#0ea5e9]/15"
+                      className="min-h-[44px] w-full rounded-full border border-[#e2e8f0] bg-[#f8fafc] pl-11 pr-11 text-sm text-[#0b1c30] placeholder:text-[#6d7a72] transition-all focus:border-[#0ea5e9] focus:bg-white focus:outline-none focus:ring-3 focus:ring-[#0ea5e9]/15"
                     />
+                    {searchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSearchQuery('')}
+                        aria-label="Limpar busca"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full text-[#6d7a72] hover:bg-[#eff4ff] hover:text-[#0b1c30]"
+                      >
+                        <X className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                    )}
                   </div>
 
                   {/* Category Segmented Controls + Sort */}
@@ -405,6 +595,36 @@ export default function App() {
                               }`}
                             >
                               {tab.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : activeSection === 'scrap-art' ? (
+                      <div
+                        className="flex flex-wrap items-center gap-1.5"
+                        role="group"
+                        aria-label="Filtrar por dificuldade"
+                      >
+                        {(
+                          [
+                            {id: 'todas', label: 'Todas'},
+                            {id: 'Fácil', label: 'Fácil'},
+                            {id: 'Intermediário', label: 'Intermediário'},
+                          ] as const
+                        ).map((diff) => {
+                          const active = difficultyFilter === diff.id;
+                          return (
+                            <button
+                              key={diff.id}
+                              type="button"
+                              onClick={() => setDifficultyFilter(diff.id)}
+                              className={`min-h-[38px] rounded-full px-3.5 py-1.5 text-xs font-bold whitespace-nowrap shrink-0 transition-colors duration-150 ${
+                                active
+                                  ? 'bg-[#006948] text-white'
+                                  : 'bg-[#eff4ff] text-[#3d4a42] hover:bg-[#dce9ff]'
+                              }`}
+                            >
+                              {diff.label}
                             </button>
                           );
                         })}
@@ -525,6 +745,7 @@ export default function App() {
                         onToggleVerify={handleToggleVerify}
                         onToggleSave={handleToggleSave}
                         onOpenDetail={(p) => setDetailPostId(p.id)}
+                        onLocateBin={(mat) => openDropOffMap(mat)}
                       />
                     ))}
                   </div>
@@ -535,6 +756,9 @@ export default function App() {
             {activeSection === 'triage' && (
               <TriageViewfinder
                 onCreatePostWithMaterial={openComposerWithMaterial}
+                onOpenDropOffMap={(mat, pointId) =>
+                  openDropOffMap(mat, pointId)
+                }
               />
             )}
 
@@ -551,17 +775,58 @@ export default function App() {
           <div className="lg:col-span-3 lg:sticky lg:top-22">
             <RightSidebar
               currentUser={currentUser}
-              onLogout={() => setCurrentUser(null)}
+              onLogout={handleLogout}
+              onOpenProfile={() => setIsProfileOpen(true)}
               habits={habits}
               onToggleHabit={handleToggleHabit}
               onResetHabits={handleResetHabits}
               dropOffPoints={DROP_OFF_POINTS}
               selectedMaterial={selectedMaterial}
+              onOpenDropOffMap={(mat, pointId) =>
+                openDropOffMap(mat || MaterialType.ALL, pointId)
+              }
               bonusPoints={bonusPoints}
               bonusKg={bonusKg}
             />
           </div>
         </div>
+
+        {/* Clean Community Footer */}
+        <footer className="mt-10 border-t border-[#bccac0]/40 pt-6 pb-4 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#6d7a72]">
+          <p className="font-medium">
+            ReciclaOQ · Rede comunitária de reciclagem, lixo zero e arte com sucata.
+          </p>
+          <div className="flex flex-wrap items-center gap-5 font-semibold">
+            <button
+              type="button"
+              onClick={() => handleSelectSection('feed')}
+              className="hover:text-[#0b1c30]"
+            >
+              Comunidade
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectSection('scrap-art')}
+              className="hover:text-[#0b1c30]"
+            >
+              Arte com Sucata
+            </button>
+            <button
+              type="button"
+              onClick={() => handleSelectSection('triage')}
+              className="hover:text-[#0b1c30]"
+            >
+              Scanner de Triagem
+            </button>
+            <button
+              type="button"
+              onClick={() => openDropOffMap(MaterialType.ALL)}
+              className="hover:text-[#0b1c30]"
+            >
+              Mapa de Ecopontos
+            </button>
+          </div>
+        </footer>
       </main>
 
       <MobileBottomNav
@@ -571,11 +836,17 @@ export default function App() {
 
       <PostDetailModal
         post={activeDetailPost}
+        canDelete={Boolean(
+          activeDetailPost &&
+            ((currentUser.id && activeDetailPost.userId === currentUser.id) ||
+              !INITIAL_POSTS.some((seed) => seed.id === activeDetailPost.id)),
+        )}
         onClose={() => setDetailPostId(null)}
         onToggleLike={handleToggleLike}
         onToggleVerify={handleToggleVerify}
         onToggleSave={handleToggleSave}
         onAddComment={handleAddComment}
+        onDeletePost={handleDeletePost}
       />
 
       <CreatePostModal
@@ -586,6 +857,35 @@ export default function App() {
         prefillCategory={composerPrefillCategory}
         defaultAuthorName={currentUser.name}
         defaultNeighborhood={currentUser.neighborhood}
+      />
+
+      <EcopontosMapModal
+        isOpen={mapModalState.isOpen}
+        onClose={() =>
+          setMapModalState((prev) => ({...prev, isOpen: false}))
+        }
+        dropOffPoints={DROP_OFF_POINTS}
+        initialMaterial={mapModalState.material}
+        initialPointId={mapModalState.pointId}
+        onFilterFeedByMaterial={(mat) => {
+          setSelectedMaterial(mat);
+          setActiveSection('feed');
+        }}
+      />
+
+      <ProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+        currentUser={currentUser}
+        onUpdateUser={handleUpdateUser}
+        onLogout={handleLogout}
+        totalPoints={totalUserPoints}
+        totalKg={totalUserKg}
+        completedHabitsCount={completedHabits.length}
+        totalHabitsCount={habits.length}
+        userPosts={userPublishedPosts}
+        savedPosts={savedPosts}
+        onOpenPost={(p) => setDetailPostId(p.id)}
       />
     </div>
   );

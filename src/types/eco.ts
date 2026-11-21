@@ -38,6 +38,7 @@ export interface EcoComment {
 
 export interface EcoPost {
   id: string;
+  userId?: string;
   authorName: string;
   authorHandle: string;
   authorNeighborhood: string;
@@ -76,8 +77,11 @@ export interface DropOffPoint {
   id: string;
   name: string;
   district: string;
+  address: string;
   distanceKm: string;
   hours: string;
+  mapX: number;
+  mapY: number;
   acceptedMaterials: Array<Exclude<MaterialType, MaterialType.ALL>>;
 }
 
@@ -99,9 +103,11 @@ export interface TriageMaterialItem {
   id: string;
   name: string;
   material: Exclude<MaterialType, MaterialType.ALL>;
+  materialGrade: string;
   recyclable: 'Reciclável' | 'Compostável' | 'Rejeito (Não Reciclável)';
   binColor: string;
   binLabel: string;
+  nearestDropOffId: string;
   cleanlinessTip: string;
   scrapArtIdea: string;
   commonMistake: string;

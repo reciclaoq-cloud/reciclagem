@@ -8,8 +8,11 @@ import {
   Recycle,
 } from 'lucide-react';
 import {BrandLogo} from './BrandLogo';
+import {isSupabaseConfigured} from '../lib/supabase';
+import {signInSupabase, signUpSupabase} from '../services/ecoRepository';
 
 export interface AuthUser {
+  id?: string;
   name: string;
   email: string;
   neighborhood: string;
@@ -59,16 +62,36 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({onLogin}) => {
   const [neighborhood, setNeighborhood] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [infoMsg, setInfoMsg] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleLoginSubmit = (event: React.FormEvent) => {
+  const handleLoginSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    setInfoMsg('');
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@')) {
       setErrorMsg('Informe um e-mail válido para entrar.');
       return;
     }
-    if (password.trim().length < 4) {
-      setErrorMsg('Digite sua senha (mínimo de 4 caracteres).');
+    if (password.trim().length < (isSupabaseConfigured ? 6 : 4)) {
+      setErrorMsg(
+        isSupabaseConfigured
+          ? 'Digite sua senha (mínimo de 6 caracteres).'
+          : 'Digite sua senha (mínimo de 4 caracteres).',
+      );
+      return;
+    }
+
+    if (isSupabaseConfigured) {
+      setIsSubmitting(true);
+      const {user, error} = await signInSupabase(cleanEmail, password);
+      setIsSubmitting(false);
+      if (error || !user) {
+        setErrorMsg(error || 'Não foi possível entrar.');
+        return;
+      }
+      setErrorMsg('');
+      onLogin(user);
       return;
     }
 
@@ -105,8 +128,9 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({onLogin}) => {
     });
   };
 
-  const handleRegisterSubmit = (event: React.FormEvent) => {
+  const handleRegisterSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+    setInfoMsg('');
     const cleanName = name.trim();
     const cleanNeighborhood = neighborhood.trim() || 'Bairro Sustentável';
     const cleanEmail = email.trim().toLowerCase();
@@ -119,8 +143,41 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({onLogin}) => {
       setErrorMsg('Informe um e-mail válido.');
       return;
     }
-    if (password.trim().length < 4) {
-      setErrorMsg('Crie uma senha com pelo menos 4 caracteres.');
+    if (password.trim().length < (isSupabaseConfigured ? 6 : 4)) {
+      setErrorMsg(
+        isSupabaseConfigured
+          ? 'Crie uma senha com pelo menos 6 caracteres.'
+          : 'Crie uma senha com pelo menos 4 caracteres.',
+      );
+      return;
+    }
+
+    if (isSupabaseConfigured) {
+      setIsSubmitting(true);
+      const result = await signUpSupabase({
+        name: cleanName,
+        email: cleanEmail,
+        password,
+        neighborhood: cleanNeighborhood,
+      });
+      setIsSubmitting(false);
+
+      if (result.error) {
+        setErrorMsg(result.error);
+        return;
+      }
+      if (result.needsConfirmation) {
+        setErrorMsg('');
+        setInfoMsg(
+          'Conta criada! Verifique seu e-mail para confirmar o cadastro e depois faça login.',
+        );
+        setMode('login');
+        return;
+      }
+      if (result.user) {
+        setErrorMsg('');
+        onLogin(result.user);
+      }
       return;
     }
 
@@ -150,6 +207,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({onLogin}) => {
 
   const handleDemoAccess = () => {
     setErrorMsg('');
+    setInfoMsg('');
     onLogin({
       name: 'Marina Vasconcelos',
       email: 'reciclaoq@gmail.com',
@@ -324,11 +382,18 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({onLogin}) => {
                   </p>
                 )}
 
+                {infoMsg && (
+                  <p className="text-xs font-semibold text-[#006948]" role="status">
+                    {infoMsg}
+                  </p>
+                )}
+
                 <button
                   type="submit"
-                  className="eco-cta-gradient flex w-full min-h-[46px] items-center justify-center gap-2 rounded-full px-6 text-sm font-bold text-white transition-transform duration-150 active:scale-[0.98]"
+                  disabled={isSubmitting}
+                  className="eco-cta-gradient flex w-full min-h-[46px] items-center justify-center gap-2 rounded-full px-6 text-sm font-bold text-white transition-transform duration-150 active:scale-[0.98] disabled:opacity-60"
                 >
-                  <span>Entrar na rede</span>
+                  <span>{isSubmitting ? 'Entrando...' : 'Entrar na rede'}</span>
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </button>
               </form>
@@ -427,9 +492,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({onLogin}) => {
 
                 <button
                   type="submit"
-                  className="flex w-full min-h-[46px] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#006398] to-[#0284c7] px-6 text-sm font-bold text-white shadow-[0_6px_18px_rgba(2,132,199,0.25)] transition-transform duration-150 active:scale-[0.98]"
+                  disabled={isSubmitting}
+                  className="flex w-full min-h-[46px] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#006398] to-[#0284c7] px-6 text-sm font-bold text-white shadow-[0_6px_18px_rgba(2,132,199,0.25)] transition-transform duration-150 active:scale-[0.98] disabled:opacity-60"
                 >
-                  <span>Criar conta e entrar</span>
+                  <span>
+                    {isSubmitting ? 'Criando conta...' : 'Criar conta e entrar'}
+                  </span>
                   <ArrowRight className="h-4 w-4" aria-hidden="true" />
                 </button>
               </form>

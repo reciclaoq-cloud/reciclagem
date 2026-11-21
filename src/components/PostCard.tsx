@@ -1,12 +1,13 @@
 import React from 'react';
 import {
+  ArrowUpRight,
   Bookmark,
   CheckCircle2,
   Heart,
+  MapPin,
   MessageCircle,
-  ArrowUpRight,
 } from 'lucide-react';
-import {EcoPost, PostCategory} from '../types/eco';
+import {EcoPost, MaterialType, PostCategory} from '../types/eco';
 import {EcoIllustration} from './EcoIllustrations';
 
 interface PostCardProps {
@@ -15,6 +16,7 @@ interface PostCardProps {
   onToggleVerify: (postId: string) => void;
   onToggleSave: (postId: string) => void;
   onOpenDetail: (post: EcoPost) => void;
+  onLocateBin: (material: Exclude<MaterialType, MaterialType.ALL>) => void;
 }
 
 const CATEGORY_LABEL: Record<Exclude<PostCategory, PostCategory.ALL>, string> = {
@@ -29,6 +31,7 @@ export const PostCard: React.FC<PostCardProps> = ({
   onToggleVerify,
   onToggleSave,
   onOpenDetail,
+  onLocateBin,
 }) => {
   const wasteLabel = post.wasteAvoidedKg.toFixed(2).replace('.', ',');
 
@@ -166,6 +169,16 @@ export const PostCard: React.FC<PostCardProps> = ({
           >
             <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
             <span className="tabular-nums">Testado ({post.verifiedCount})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onLocateBin(post.material)}
+            title={`Encontrar ecoponto para ${post.material}`}
+            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold text-[#3d4a42] hover:bg-[#eff4ff] hover:text-[#006398] whitespace-nowrap shrink-0 transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0284c7]"
+          >
+            <MapPin className="h-4 w-4" aria-hidden="true" />
+            <span className="hidden sm:inline">Onde descartar</span>
           </button>
         </div>
 

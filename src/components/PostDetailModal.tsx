@@ -3,8 +3,10 @@ import {
   Bookmark,
   Check,
   CheckCircle2,
+  Copy,
   Heart,
   Send,
+  Trash2,
   X,
 } from 'lucide-react';
 import {EcoPost} from '../types/eco';
@@ -12,25 +14,52 @@ import {EcoIllustration} from './EcoIllustrations';
 
 interface PostDetailModalProps {
   post: EcoPost | null;
+  canDelete?: boolean;
   onClose: () => void;
   onToggleLike: (postId: string) => void;
   onToggleVerify: (postId: string) => void;
   onToggleSave: (postId: string) => void;
   onAddComment: (postId: string, content: string) => void;
+  onDeletePost?: (postId: string) => void;
 }
 
 export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   post,
+  canDelete = false,
   onClose,
   onToggleLike,
   onToggleVerify,
   onToggleSave,
   onAddComment,
+  onDeletePost,
 }) => {
   const [commentText, setCommentText] = useState('');
   const [checkedMaterials, setCheckedMaterials] = useState<number[]>([]);
+  const [copied, setCopied] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   if (!post) return null;
+
+  const handleCopyTip = async () => {
+    const text = [
+      `${post.title} (${post.material})`,
+      post.summary,
+      '',
+      'Materiais:',
+      ...post.materialsNeeded.map((m) => `- ${m}`),
+      '',
+      'Passo a passo:',
+      ...post.steps.map((s, idx) => `${idx + 1}. ${s}`),
+    ].join('\n');
+
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
 
   const toggleMaterialCheck = (index: number) => {
     setCheckedMaterials((prev) =>
@@ -220,6 +249,60 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
             />
             <span>{post.savedByMe ? 'Salvo' : 'Salvar'}</span>
           </button>
+
+          <button
+            type="button"
+            onClick={handleCopyTip}
+            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-[#eff4ff] px-4 py-2 text-xs font-bold text-[#006398] hover:bg-[#dce9ff] transition-colors"
+          >
+            {copied ? (
+              <>
+                <Check className="h-4 w-4 text-[#059669]" aria-hidden="true" />
+                <span>Resumo copiado</span>
+              </>
+            ) : (
+              <>
+                <Copy className="h-4 w-4" aria-hidden="true" />
+                <span>Copiar dica</span>
+              </>
+            )}
+          </button>
+
+          {canDelete && onDeletePost && (
+            <div className="ml-auto flex items-center gap-1.5">
+              {confirmingDelete ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onDeletePost(post.id);
+                      setConfirmingDelete(false);
+                      onClose();
+                    }}
+                    className="min-h-[38px] rounded-full bg-[#ba1a1a] px-3.5 text-xs font-bold text-white"
+                  >
+                    Confirmar exclusão
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDelete(false)}
+                    className="min-h-[38px] rounded-full bg-[#eff4ff] px-3 text-xs font-semibold text-[#3d4a42]"
+                  >
+                    Cancelar
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingDelete(true)}
+                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-[#ffdad6]/70 px-3.5 py-2 text-xs font-bold text-[#93000a] hover:bg-[#ffdad6] transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  <span>Excluir</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Comments Section */}
