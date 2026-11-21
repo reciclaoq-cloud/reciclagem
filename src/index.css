@@ -1,0 +1,73 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --surface: #f8f9ff;
+    --surface-low: #eff4ff;
+    --surface-card: #ffffff;
+    --on-surface: #0b1c30;
+    --on-surface-variant: #3d4a42;
+    --outline: #6d7a72;
+    --outline-variant: #bccac0;
+    --primary: #006948;
+    --primary-bright: #10b981;
+    --secondary: #006398;
+    --secondary-bright: #0ea5e9;
+  }
+
+  html {
+    font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+    background-color: var(--surface);
+    color: var(--on-surface);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    background: radial-gradient(circle at 12% 0%, #eff4ff 0%, #f8f9ff 48%, #f4fbf8 100%);
+    min-height: 100vh;
+  }
+}
+
+.font-mono-tabular {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+.eco-glass {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.92);
+}
+
+.eco-card {
+  background: #ffffff;
+  border: 1px solid rgba(188, 202, 192, 0.42);
+  box-shadow: 0 8px 30px rgba(2, 132, 199, 0.04);
+}
+
+.eco-cta-gradient {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.24);
+}
+
+.eco-cta-gradient:hover {
+  box-shadow: 0 8px 22px rgba(16, 185, 129, 0.36);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

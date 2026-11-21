@@ -1,0 +1,224 @@
+---
+name: Ecological Glass & Clean Tech
+colors:
+  surface: '#f8f9ff'
+  surface-dim: '#cbdbf5'
+  surface-bright: '#f8f9ff'
+  surface-container-lowest: '#ffffff'
+  surface-container-low: '#eff4ff'
+  surface-container: '#e5eeff'
+  surface-container-high: '#dce9ff'
+  surface-container-highest: '#d3e4fe'
+  on-surface: '#0b1c30'
+  on-surface-variant: '#3d4a42'
+  inverse-surface: '#213145'
+  inverse-on-surface: '#eaf1ff'
+  outline: '#6d7a72'
+  outline-variant: '#bccac0'
+  surface-tint: '#006c4a'
+  primary: '#006948'
+  on-primary: '#ffffff'
+  primary-container: '#00855d'
+  on-primary-container: '#f5fff7'
+  inverse-primary: '#68dba9'
+  secondary: '#006398'
+  on-secondary: '#ffffff'
+  secondary-container: '#5bb8fe'
+  on-secondary-container: '#00476e'
+  tertiary: '#006947'
+  on-tertiary: '#ffffff'
+  tertiary-container: '#00855b'
+  on-tertiary-container: '#f5fff6'
+  error: '#ba1a1a'
+  on-error: '#ffffff'
+  error-container: '#ffdad6'
+  on-error-container: '#93000a'
+  primary-fixed: '#85f8c4'
+  primary-fixed-dim: '#68dba9'
+  on-primary-fixed: '#002114'
+  on-primary-fixed-variant: '#005137'
+  secondary-fixed: '#cce5ff'
+  secondary-fixed-dim: '#93ccff'
+  on-secondary-fixed: '#001d31'
+  on-secondary-fixed-variant: '#004b73'
+  tertiary-fixed: '#6ffbbe'
+  tertiary-fixed-dim: '#4edea3'
+  on-tertiary-fixed: '#002113'
+  on-tertiary-fixed-variant: '#005236'
+  background: '#f8f9ff'
+  on-background: '#0b1c30'
+  surface-variant: '#d3e4fe'
+typography:
+  display-lg:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 3.5rem
+    fontWeight: '800'
+    lineHeight: 4rem
+    letterSpacing: -0.03em
+  display-lg-mobile:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 2.25rem
+    fontWeight: '800'
+    lineHeight: 2.75rem
+    letterSpacing: -0.02em
+  headline-xl:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 2.5rem
+    fontWeight: '700'
+    lineHeight: 3rem
+    letterSpacing: -0.025em
+  headline-xl-mobile:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 1.75rem
+    fontWeight: '700'
+    lineHeight: 2.25rem
+    letterSpacing: -0.02em
+  headline-lg:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 2rem
+    fontWeight: '700'
+    lineHeight: 2.5rem
+    letterSpacing: -0.02em
+  headline-lg-mobile:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 1.5rem
+    fontWeight: '700'
+    lineHeight: 2rem
+    letterSpacing: -0.015em
+  headline-md:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 1.25rem
+    fontWeight: '600'
+    lineHeight: 1.75rem
+    letterSpacing: -0.01em
+  body-lg:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 1.125rem
+    fontWeight: '400'
+    lineHeight: 1.75rem
+  body-md:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 1rem
+    fontWeight: '400'
+    lineHeight: 1.5rem
+  body-sm:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 0.875rem
+    fontWeight: '400'
+    lineHeight: 1.25rem
+  label-lg:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 0.875rem
+    fontWeight: '600'
+    lineHeight: 1.25rem
+    letterSpacing: 0.01em
+  label-md:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 0.75rem
+    fontWeight: '600'
+    lineHeight: 1rem
+    letterSpacing: 0.02em
+  label-sm:
+    fontFamily: Plus Jakarta Sans
+    fontSize: 0.6875rem
+    fontWeight: '500'
+    lineHeight: 0.875rem
+    letterSpacing: 0.03em
+rounded:
+  sm: 0.5rem
+  DEFAULT: 1rem
+  md: 1.5rem
+  lg: 2rem
+  xl: 3rem
+  full: 9999px
+spacing:
+  gutter: 1rem
+  gutter-desktop: 1.5rem
+  margin: 1rem
+  margin-tablet: 1.5rem
+  margin-desktop: 2.5rem
+  space-xs: 0.25rem
+  space-sm: 0.5rem
+  space-md: 1rem
+  space-lg: 1.5rem
+  space-xl: 2.5rem
+---
+
+## Brand & Style
+
+The design system embodies the intersection between cutting-edge computer vision artificial intelligence and environmental consciousness. The visual tone is approachable, civic-minded, highly intelligent, and clean. It balances the technological precision required for instant visual material scanning with the warmth and human connection of an active community network.
+
+The design movement combines **Modern Clean Flat** with **Subtle Glassmorphism** and tactile soft-surfacing. Interfaces feature expansive, breathable white and ultra-pale sky backdrops, layered translucent overlays for floating utilities, and vibrant chromatic anchors that inspire civic action, transparency, and trust. Visual clutter is eliminated to make photo-scanning frictionless and rewarding.
+
+## Colors
+
+The color palette centers around clean ecological vitality and technological trust:
+
+- **Primary (`#059669` / `#10B981`)**: The focal emerald leaf tone. Represents biological renewal, successful recycling validation, eco-points, and primary actionable levers.
+- **Secondary (`#0284C7` / `#0EA5E9`)**: Deep ocean and clear sky blue. Communicates algorithmic reliability, computer vision focal reticles, verification states, and collective impact metrics.
+- **Surface Canvas**: Driven by crisp, ultra-clean neutral surfaces ranging from off-white `#FFFFFF` to chilled morning-sky `#F0F9FF`, anchored by soft structural slate neutrals (`#F8FAFC`, `#F1F5F9`, `#E2E8F0`).
+- **Semantic Accents**: Cautionary warm amber (`#F59E0B`) for unclassified or mixed materials, vibrant rose (`#EF4444`) for non-recyclable warnings, and vibrant neon emerald for AI scan bounding confirmations.
+
+## Typography
+
+The type system relies completely on **Plus Jakarta Sans**, chosen for its friendly rounded geometric counters, excellent legibility on handheld screens, and contemporary tech-forward posture.
+
+- **Headlines & Titles**: Styled with assertive weights (700 and 800) and slight negative tracking (`-0.02em` to `-0.03em`) to deliver modern editorial confidence.
+- **Body Content**: Tuned with optimal line heights (`1.5` to `1.6`) and regular/medium weights for high scanability during physical tasks, sorting workflows, and collaborative discussions.
+- **Labels & Badges**: Set in semibold with positive micro-tracking to guarantee crisp readability inside translucent tags, scan reticle overlays, and eco-score pills.
+
+## Layout & Spacing
+
+The layout is built upon an adaptive 8pt spatial rhythmic system configured across a responsive fluid grid:
+
+- **Mobile (<768px)**: 4 fluid columns, 16px margins, 16px gutters. Optimizes single-handed interactions, positioning the visual scanner button within an anchored bottom navigation zone.
+- **Tablet (768px - 1024px)**: 8 fluid columns, 24px margins, 16px gutters. Divides feed streams and material identification cards into dual-column balance.
+- **Desktop (>1024px)**: 12 fluid columns with a capped content container width of 1280px, 40px outer margins, and 24px gutters. Accommodates multi-pane layouts: left-hand community navigation, central feed/scanner diagnostics, and right-hand personal impact and collection station maps.
+
+## Elevation & Depth
+
+Visual hierarchy relies on soft luminosity, translucent layers, and diffuse atmospheric shadows rather than heavy structural borders:
+
+- **Base Layer (Level 0)**: `#F8FAFC` to `#F0F9FF` soft tinted canvas, creating an expansive, sanitary, and ecological foundation.
+- **Elevated Surfaces (Level 1)**: Pure white `#FFFFFF` cards with an ultra-soft tinted shadow (`0 8px 30px rgba(2, 132, 199, 0.04)`) and a subtle boundary line (`1px solid rgba(226, 232, 240, 0.8)`).
+- **Glass Floating Plates (Level 2)**: Translucent white overlays (`rgba(255, 255, 255, 0.75)`) infused with a `12px` to `16px` backdrop blur (`backdrop-filter: blur(12px)`) and a pristine top-highlight border (`1px solid rgba(255, 255, 255, 0.9)`). Used for the active camera scanning viewfinder, floating bottom navigation, and dynamic identification tags.
+- **Overlay Dialogs & Floating Drawers (Level 3)**: `#FFFFFF` paired with an ambient dual shadow (`0 20px 40px -10px rgba(5, 150, 105, 0.08)`, `0 1px 3px rgba(0, 0, 0, 0.04)`) to lift critical material disposal confirmations above ambient community feeds.
+
+## Shapes
+
+The shape vocabulary uses pill and hyper-rounded geometry (`level 3`), reinforcing friendliness, safety, and modern organic design:
+
+- **Interactive Elements (Buttons, Inputs, Badges)**: Full pill geometry (`rounded-full`) to offer approachable, organic touch targets.
+- **Content Cards & Containers**: Hyper-rounded corners (`1.5rem` to `2rem` / `rounded-2xl` to `rounded-3xl`) that soften information density and evoke fluid modern glass aesthetics.
+- **Camera Viewfinder**: An expansive rounded frame with softened targeting corners (`1.25rem`) that pulse with glowing green/blue micro-borders upon AI object identification.
+
+## Components
+
+### Buttons
+- **Primary Action (Scan & Dispose)**: Full-pill silhouette with vibrant emerald gradient fill (`linear-gradient(135deg, #10B981 0%, #059669 100%)`), white bold text, soft emerald glow on hover (`0 8px 20px rgba(16, 185, 129, 0.35)`), and a subtle `active:scale-[0.98]` tactile press response.
+- **Secondary Action (Community & Share)**: Full-pill with tinted soft-sky background (`#E0F2FE`), text in deep ocean blue (`#0284C7`), transitioning to an ocean glow upon focus.
+- **Ghost / Glass Variant**: Frosted pill (`rgba(255, 255, 255, 0.6)`) with subtle border (`1px solid rgba(255, 255, 255, 0.8)`), used over camera feeds or media banners.
+
+### AI Material Cards & Community Posts
+- Constructed with `24px` border radius (`rounded-2xl`), pure `#FFFFFF` background, micro-thin slate border (`#F1F5F9`), and diffuse ocean ambient drop shadows.
+- Include a top-level material indicator chip, an interactive photo thumbnail with soft rounded corners (`rounded-xl`), and community interaction rows (upvotes, verification ticks, local bin locator shortcuts).
+
+### Chips & Badges
+- Capsule pills with `8px` vertical and `14px` horizontal padding.
+- Recyclable material states feature muted background tints with saturated text:
+  - Plastic/PET: Soft Sky (`#E0F2FE` / `#0284C7`)
+  - Glass: Mint Glass (`#D1FAE5` / `#059669`)
+  - Aluminum: Chilled Slate (`#F1F5F9` / `#475569`)
+  - Compostable: Meadow Green (`#DCFCE7` / `#15803D`)
+
+### Input Fields & Search Bars
+- Pill-shaped forms encased in `#FFFFFF` with a background fill of `#F8FAFC`.
+- Border transitions smoothly from neutral gray (`#E2E8F0`) to a distinct double-ring glow of secondary ocean blue (`#0EA5E9`) upon focus, communicating accessibility and technological readiness.
+
+### Checkboxes & Switches
+- Organic pill switches for eco-toggles and notification preferences. Active states light up in vibrant emerald (`#10B981`) with a floating circular knob in high-sheen white.
+- Selection checkboxes feature smooth `8px` rounded rectangles with a snap-spring check animation upon selection.
+
+### AI Scanner Viewfinder (Specialized Component)
+- Edge-to-edge floating viewport featuring translucent darkened glass perimeter masks.
+- Dynamic targeting bracket with glowing `#10B981` corner guides that lock and shrink onto recognized bottles, cans, or cardboard packaging, presenting instant floating glass tags revealing material grade, cleanliness tips, and nearest drop-off bins.
