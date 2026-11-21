@@ -1,11 +1,14 @@
 import React, {useEffect, useRef, useState} from 'react';
 import {ImagePlus, X} from 'lucide-react';
 import {
+  CraftSubcategory,
   EcoPost,
   IllustrationTheme,
   MaterialType,
   PostCategory,
 } from '../types/eco';
+import {CRAFT_CATEGORIES} from './CreativeCategoriesStrip';
+import {compressImageFile} from '../utils/imageUpload';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -13,19 +16,18 @@ interface CreatePostModalProps {
   onPublish: (newPost: EcoPost) => void;
   prefillMaterial?: Exclude<MaterialType, MaterialType.ALL>;
   prefillCategory?: Exclude<PostCategory, PostCategory.ALL>;
+  prefillCraftSubcategory?: CraftSubcategory;
   defaultAuthorName?: string;
   defaultNeighborhood?: string;
 }
 
 const ILLUSTRATION_OPTIONS: Array<{id: IllustrationTheme; label: string}> = [
-  {id: 'pet-planter', label: 'Horta em Garrafa PET'},
-  {id: 'tin-lantern', label: 'Arte com Lata de Alumínio'},
-  {id: 'glass-terrarium', label: 'Terrário em Pote de Vidro'},
-  {id: 'cardboard-organizer', label: 'Organizador de Papelão'},
-  {id: 'compost-bucket', label: 'Composteira Doméstica'},
-  {id: 'water-rinse', label: 'Higienização sem Desperdício'},
-  {id: 'kitchen-scraps', label: 'Reaproveitamento na Cozinha'},
-  {id: 'sorting-guide', label: 'Guia de Triagem Correta'},
+  {id: 'craft-artesanato', label: '3D · Artesanato com PET'},
+  {id: 'craft-jogos', label: '3D · Jogos e Brinquedos'},
+  {id: 'craft-decoracao', label: '3D · Decoração Reciclada'},
+  {id: 'craft-instrumentos', label: '3D · Instrumentos Musicais'},
+  {id: 'compost-bucket', label: '3D · Composteira Doméstica'},
+  {id: 'water-rinse', label: '3D · Higienização e Triagem'},
 ];
 
 const MATERIAL_OPTIONS: Array<Exclude<MaterialType, MaterialType.ALL>> = [
@@ -43,11 +45,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   onPublish,
   prefillMaterial,
   prefillCategory,
+  prefillCraftSubcategory,
   defaultAuthorName,
   defaultNeighborhood,
 }) => {
   const [category, setCategory] = useState<Exclude<PostCategory, PostCategory.ALL>>(
     prefillCategory || PostCategory.SCRAP_ART,
+  );
+  const [craftSubcategory, setCraftSubcategory] = useState<CraftSubcategory>(
+    prefillCraftSubcategory || 'artesanato',
   );
   const [material, setMaterial] = useState<Exclude<MaterialType, MaterialType.ALL>>(
     prefillMaterial || MaterialType.PET,
@@ -58,10 +64,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [stepsText, setStepsText] = useState('');
   const [estimatedTime, setEstimatedTime] = useState('20 min');
   const [wasteAvoidedKg, setWasteAvoidedKg] = useState('0.5');
-  const [illustration, setIllustration] = useState<IllustrationTheme>('pet-planter');
-  const [customImageUrl, setCustomImageUrl] = useState<string | undefined>(undefined);
+  const [illustration, setIllustration] =
+    useState<IllustrationTheme>('craft-artesanato');
+  const [customImageUrl, setCustomImageUrl] = useState<string | undefined>(
+    undefined,
+  );
   const [authorName, setAuthorName] = useState(defaultAuthorName || 'Você');
-  const [neighborhood, setNeighborhood] = useState(defaultNeighborhood || 'Centro');
+  const [neighborhood, setNeighborhood] = useState(
+    defaultNeighborhood || 'Centro',
+  );
   const [errorMsg, setErrorMsg] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -69,7 +80,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   useEffect(() => {
     if (prefillMaterial) setMaterial(prefillMaterial);
     if (prefillCategory) setCategory(prefillCategory);
-  }, [prefillMaterial, prefillCategory]);
+    if (prefillCraftSubcategory) setCraftSubcategory(prefillCraftSubcategory);
+  }, [prefillMaterial, prefillCategory, prefillCraftSubcategory]);
 
   useEffect(() => {
     if (defaultAuthorName) setAuthorName(defaultAuthorName);
@@ -78,22 +90,26 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        setCustomImageUrl(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      const compressed = await compressImageFile(file);
+      setCustomImageUrl(compressed);
+      setErrorMsg('');
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error ? err.message : 'Erro ao processar imagem.',
+      );
+    }
   };
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!title.trim() || !summary.trim()) {
-      setErrorMsg('Preencha o título e a descrição prática da sua dica ou projeto.');
+      setErrorMsg(
+        'Preencha o título e a descrição prática da sua dica ou projeto.',
+      );
       return;
     }
 
@@ -117,13 +133,16 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
     const newPost: EcoPost = {
       id: `post-${Date.now()}`,
+      isRealUserPost: true,
       authorName: cleanName,
       authorHandle: `@${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 14) || 'reciclaoq'}`,
       authorNeighborhood: neighborhood.trim() || 'Bairro Sustentável',
-      authorInitials: initials || 'EC',
+      authorInitials: initials || 'RQ',
       createdAt: 'Agora mesmo',
       timestampOrder: Date.now(),
       category,
+      craftSubcategory:
+        category === PostCategory.SCRAP_ART ? craftSubcategory : undefined,
       material,
       title: title.trim(),
       summary: summary.trim(),
@@ -181,7 +200,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               Compartilhar dica ou arte com sucata
             </h2>
             <p className="mt-0.5 text-xs text-[#6d7a72]">
-              Inspire a rede com práticas de reciclagem, redução de desperdício ou upcycling.
+              Inspire a rede com práticas de reciclagem, redução de desperdício ou criação em 3D.
             </p>
           </div>
           <button
@@ -226,6 +245,40 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
               ))}
             </div>
           </div>
+
+          {/* 4 Craft Subcategories when Arte com Sucata is selected */}
+          {category === PostCategory.SCRAP_ART && (
+            <div>
+              <span className="block text-xs font-semibold text-[#3d4a42] mb-2">
+                Tipo de criação com sucata
+              </span>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {CRAFT_CATEGORIES.map((sub) => {
+                  const active = craftSubcategory === sub.id;
+                  const isGreen = sub.colorScheme === 'green';
+                  return (
+                    <button
+                      key={sub.id}
+                      type="button"
+                      onClick={() => {
+                        setCraftSubcategory(sub.id);
+                        setIllustration(sub.theme);
+                      }}
+                      className={`min-h-[38px] rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${
+                        active
+                          ? isGreen
+                            ? 'bg-[#006948] text-white'
+                            : 'bg-[#006398] text-white'
+                          : 'bg-[#eff4ff] text-[#3d4a42] hover:bg-[#dce9ff]'
+                      }`}
+                    >
+                      {sub.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
@@ -391,7 +444,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 htmlFor="post-illustration"
                 className="block text-xs font-semibold text-[#3d4a42] mb-1.5"
               >
-                Ilustração do cartão
+                Cena 3D do cartão
               </label>
               <select
                 id="post-illustration"
@@ -414,15 +467,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#eff4ff] px-4 py-3">
             <div className="text-xs text-[#3d4a42]">
               {customImageUrl
-                ? 'Foto local anexada ao projeto.'
-                : 'Opcional: anexe uma foto do seu projeto ou dica.'}
+                ? 'Foto do projeto anexada com sucesso.'
+                : 'Opcional: envie uma foto real do seu projeto ou material.'}
             </div>
             <div className="flex items-center gap-2">
               <input
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
-                onChange={handlePhotoUpload}
+                onChange={(e) => void handlePhotoUpload(e)}
                 className="hidden"
               />
               {customImageUrl && (

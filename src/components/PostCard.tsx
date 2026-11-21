@@ -25,6 +25,13 @@ const CATEGORY_LABEL: Record<Exclude<PostCategory, PostCategory.ALL>, string> = 
   [PostCategory.SCRAP_ART]: 'Arte com Sucata',
 };
 
+const CRAFT_SUB_LABEL: Record<string, string> = {
+  artesanato: 'Artesanato',
+  'jogos-brinquedos': 'Jogos e Brinquedos',
+  decoracao: 'Decoração',
+  instrumentos: 'Instrumentos',
+};
+
 export const PostCard: React.FC<PostCardProps> = ({
   post,
   onToggleLike,
@@ -61,6 +68,14 @@ export const PostCard: React.FC<PostCardProps> = ({
               <span className="font-semibold text-[#006948]">
                 {CATEGORY_LABEL[post.category]}
               </span>
+              {post.craftSubcategory && CRAFT_SUB_LABEL[post.craftSubcategory] && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="font-semibold text-[#006398]">
+                    {CRAFT_SUB_LABEL[post.craftSubcategory]}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>

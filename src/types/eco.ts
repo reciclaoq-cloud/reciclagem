@@ -5,6 +5,12 @@ export enum PostCategory {
   SCRAP_ART = 'arte-sucata',
 }
 
+export type CraftSubcategory =
+  | 'artesanato'
+  | 'jogos-brinquedos'
+  | 'decoracao'
+  | 'instrumentos';
+
 export enum MaterialType {
   ALL = 'todos',
   PET = 'Plástico PET',
@@ -23,7 +29,11 @@ export type IllustrationTheme =
   | 'cardboard-organizer'
   | 'kitchen-scraps'
   | 'sorting-guide'
-  | 'glass-terrarium';
+  | 'glass-terrarium'
+  | 'craft-artesanato'
+  | 'craft-jogos'
+  | 'craft-decoracao'
+  | 'craft-instrumentos';
 
 export type NavSection = 'feed' | 'scrap-art' | 'triage' | 'challenges' | 'saved';
 
@@ -39,6 +49,7 @@ export interface EcoComment {
 export interface EcoPost {
   id: string;
   userId?: string;
+  isRealUserPost?: boolean;
   authorName: string;
   authorHandle: string;
   authorNeighborhood: string;
@@ -46,6 +57,7 @@ export interface EcoPost {
   createdAt: string;
   timestampOrder: number;
   category: Exclude<PostCategory, PostCategory.ALL>;
+  craftSubcategory?: CraftSubcategory;
   material: Exclude<MaterialType, MaterialType.ALL>;
   title: string;
   summary: string;
@@ -62,6 +74,34 @@ export interface EcoPost {
   verifiedByMe?: boolean;
   savedByMe?: boolean;
   comments: EcoComment[];
+}
+
+export interface CategoryPhotoEntry {
+  id: string;
+  userId?: string;
+  authorName: string;
+  authorNeighborhood: string;
+  craftCategory: CraftSubcategory;
+  material: Exclude<MaterialType, MaterialType.ALL>;
+  title: string;
+  imageUrl: string;
+  createdAt: string;
+}
+
+export interface BeforeAfterEntry {
+  id: string;
+  userId?: string;
+  authorName: string;
+  authorHandle: string;
+  authorNeighborhood: string;
+  authorInitials: string;
+  craftCategory: CraftSubcategory;
+  material: Exclude<MaterialType, MaterialType.ALL>;
+  title: string;
+  description: string;
+  beforeImageUrl: string;
+  afterImageUrl: string;
+  createdAt: string;
 }
 
 export interface HabitItem {

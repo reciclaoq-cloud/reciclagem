@@ -1,5 +1,12 @@
 import React, {useEffect, useMemo, useState} from 'react';
-import {ArrowUpDown, ScanSearch, Search, Sparkles, X} from 'lucide-react';
+import {
+  ArrowLeftRight,
+  ArrowUpDown,
+  ScanSearch,
+  Search,
+  Sparkles,
+  X,
+} from 'lucide-react';
 import {
   DROP_OFF_POINTS,
   INITIAL_CHALLENGES,
@@ -7,6 +14,9 @@ import {
   INITIAL_POSTS,
 } from './data/ecoSeedData';
 import {
+  BeforeAfterEntry,
+  CategoryPhotoEntry,
+  CraftSubcategory,
   DailyChallenge,
   EcoPost,
   HabitItem,
@@ -27,13 +37,22 @@ import {MobileBottomNav} from './components/MobileBottomNav';
 import {AuthUser, LoginScreen} from './components/LoginScreen';
 import {EcopontosMapModal} from './components/EcopontosMapModal';
 import {ProfileModal} from './components/ProfileModal';
+import {CreativeCategoriesStrip} from './components/CreativeCategoriesStrip';
+import {CategoryPhotoUploadModal} from './components/CategoryPhotoUploadModal';
+import {BeforeAfterModal} from './components/BeforeAfterModal';
 import {isSupabaseConfigured} from './lib/supabase';
 import {
+  deleteSupabaseBeforeAfter,
+  deleteSupabaseCategoryPhoto,
   deleteSupabasePost,
+  fetchSupabaseBeforeAfter,
+  fetchSupabaseCategoryPhotos,
   fetchSupabaseChallenges,
   fetchSupabaseHabits,
   fetchSupabasePostInteractions,
   fetchSupabasePosts,
+  insertSupabaseBeforeAfter,
+  insertSupabaseCategoryPhoto,
   insertSupabaseComment,
   insertSupabasePost,
   signOutSupabase,
@@ -48,6 +67,8 @@ const STORAGE_KEYS = {
   POSTS: 'reciclaoq_posts_v1',
   HABITS: 'reciclaoq_habits_v1',
   CHALLENGES: 'reciclaoq_challenges_v1',
+  CATEGORY_PHOTOS: 'reciclaoq_category_photos_v1',
+  BEFORE_AFTER: 'reciclaoq_before_after_v1',
 };
 
 function loadStored<T>(key: string, fallback: T): T {
@@ -62,9 +83,19 @@ function loadStored<T>(key: string, fallback: T): T {
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [posts, setPosts] = useState<EcoPost[]>(() =>
-    loadStored<EcoPost[]>(STORAGE_KEYS.POSTS, INITIAL_POSTS),
+  const [posts, setPosts] = useState<EcoPost[]>(() => {
+    const stored = loadStored<EcoPost[]>(STORAGE_KEYS.POSTS, INITIAL_POSTS);
+    const hasReal = stored.some((p) => p.isRealUserPost || Boolean(p.userId));
+    return hasReal
+      ? stored.filter((p) => p.isRealUserPost || Boolean(p.userId))
+      : stored;
+  });
+  const [categoryPhotos, setCategoryPhotos] = useState<CategoryPhotoEntry[]>(
+    () => loadStored<CategoryPhotoEntry[]>(STORAGE_KEYS.CATEGORY_PHOTOS, []),
   );
+  const [beforeAfterEntries, setBeforeAfterEntries] = useState<
+    BeforeAfterEntry[]
+  >(() => loadStored<BeforeAfterEntry[]>(STORAGE_KEYS.BEFORE_AFTER, []));
   const [habits, setHabits] = useState<HabitItem[]>(() =>
     loadStored<HabitItem[]>(STORAGE_KEYS.HABITS, INITIAL_HABITS),
   );
@@ -75,6 +106,9 @@ export default function App() {
   const [activeSection, setActiveSection] = useState<NavSection>('feed');
   const [selectedCategory, setSelectedCategory] = useState<PostCategory>(
     PostCategory.ALL,
+  );
+  const [selectedCraft, setSelectedCraft] = useState<CraftSubcategory | null>(
+    null,
   );
   const [selectedMaterial, setSelectedMaterial] = useState<MaterialType>(
     MaterialType.ALL,
@@ -93,12 +127,32 @@ export default function App() {
   const [composerPrefillCategory, setComposerPrefillCategory] = useState<
     Exclude<PostCategory, PostCategory.ALL> | undefined
   >(undefined);
+  const [composerPrefillCraft, setComposerPrefillCraft] = useState<
+    CraftSubcategory | undefined
+  >(undefined);
+  const [uploadModalCraft, setUploadModalCraft] =
+    useState<CraftSubcategory | null>(null);
+  const [beforeAfterModalState, setBeforeAfterModalState] = useState<{
+    isOpen: boolean;
+    craft?: CraftSubcategory;
+  }>({isOpen: false});
   const [mapModalState, setMapModalState] = useState<{
     isOpen: boolean;
     material: MaterialType;
     pointId?: string;
   }>({isOpen: false, material: MaterialType.ALL});
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [authModalState, setAuthModalState] = useState<{
+    isOpen: boolean;
+    mode: 'login' | 'register';
+    message?: string;
+  }>({isOpen: false, mode: 'login'});
+  const [pendingAction, setPendingAction] = useState<
+    | null
+    | {type: 'composer'}
+    | {type: 'upload'; craft: CraftSubcategory}
+    | {type: 'beforeAfter'}
+  >(null);
 
   useEffect(() => {
     try {
@@ -107,6 +161,28 @@ export default function App() {
       // Ignore storage quota errors
     }
   }, [posts]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        STORAGE_KEYS.CATEGORY_PHOTOS,
+        JSON.stringify(categoryPhotos),
+      );
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [categoryPhotos]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        STORAGE_KEYS.BEFORE_AFTER,
+        JSON.stringify(beforeAfterEntries),
+      );
+    } catch {
+      // Ignore storage quota errors
+    }
+  }, [beforeAfterEntries]);
 
   useEffect(() => {
     try {
@@ -128,21 +204,41 @@ export default function App() {
   }, [challenges]);
 
   useEffect(() => {
-    if (!currentUser || !isSupabaseConfigured) return;
+    if (!isSupabaseConfigured) return;
     let active = true;
 
     (async () => {
-      const [remotePosts, remoteHabits, remoteInteractions, remoteChallenges] =
-        await Promise.all([
-          fetchSupabasePosts(),
-          fetchSupabaseHabits(currentUser.id, INITIAL_HABITS),
-          fetchSupabasePostInteractions(currentUser.id),
-          fetchSupabaseChallenges(currentUser.id, INITIAL_CHALLENGES),
-        ]);
+      const [
+        remotePosts,
+        remoteCategoryPhotos,
+        remoteBeforeAfter,
+        remoteHabits,
+        remoteInteractions,
+        remoteChallenges,
+      ] = await Promise.all([
+        fetchSupabasePosts(),
+        fetchSupabaseCategoryPhotos(),
+        fetchSupabaseBeforeAfter(),
+        currentUser
+          ? fetchSupabaseHabits(currentUser.id, INITIAL_HABITS)
+          : Promise.resolve(null),
+        currentUser
+          ? fetchSupabasePostInteractions(currentUser.id)
+          : Promise.resolve(null),
+        currentUser
+          ? fetchSupabaseChallenges(currentUser.id, INITIAL_CHALLENGES)
+          : Promise.resolve(null),
+      ]);
       if (!active) return;
 
       if (remotePosts && remotePosts.length > 0) {
-        const merged = remotePosts.map((post) => {
+        const hasRemoteReal = remotePosts.some(
+          (p) => p.isRealUserPost || Boolean(p.userId),
+        );
+        const cleanedRemote = hasRemoteReal
+          ? remotePosts.filter((p) => p.isRealUserPost || Boolean(p.userId))
+          : remotePosts;
+        const merged = cleanedRemote.map((post) => {
           const interaction = remoteInteractions?.get(post.id);
           return interaction
             ? {
@@ -169,6 +265,12 @@ export default function App() {
           }),
         );
       }
+      if (remoteCategoryPhotos) {
+        setCategoryPhotos(remoteCategoryPhotos);
+      }
+      if (remoteBeforeAfter) {
+        setBeforeAfterEntries(remoteBeforeAfter);
+      }
       if (remoteHabits) {
         setHabits(remoteHabits);
       }
@@ -181,6 +283,34 @@ export default function App() {
       active = false;
     };
   }, [currentUser]);
+
+  const openAuthModal = (
+    mode: 'login' | 'register' = 'login',
+    message?: string,
+    afterAuth?:
+      | {type: 'composer'}
+      | {type: 'upload'; craft: CraftSubcategory}
+      | {type: 'beforeAfter'},
+  ) => {
+    setPendingAction(afterAuth || null);
+    setAuthModalState({isOpen: true, mode, message});
+  };
+
+  const handleAuthSuccess = (user: AuthUser) => {
+    setCurrentUser(user);
+    setAuthModalState({isOpen: false, mode: 'login'});
+    if (pendingAction?.type === 'composer') {
+      setIsComposerOpen(true);
+    } else if (pendingAction?.type === 'upload') {
+      setUploadModalCraft(pendingAction.craft);
+    } else if (pendingAction?.type === 'beforeAfter') {
+      setBeforeAfterModalState({
+        isOpen: true,
+        craft: selectedCraft || undefined,
+      });
+    }
+    setPendingAction(null);
+  };
 
   const handleLogout = () => {
     void signOutSupabase();
@@ -266,15 +396,22 @@ export default function App() {
   };
 
   const handleAddComment = (postId: string, content: string) => {
+    if (!currentUser) {
+      openAuthModal(
+        'login',
+        'Entre ou crie sua conta para comentar nas publicações da comunidade.',
+      );
+      return;
+    }
     const newComment = {
       id: `comment-${Date.now()}`,
-      authorName: currentUser?.name || 'Você',
-      authorHandle: `@${(currentUser?.name || 'reciclaoq').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 14)}`,
-      authorRole: currentUser?.neighborhood || 'Comunidade',
+      authorName: currentUser.name,
+      authorHandle: `@${currentUser.name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 14)}`,
+      authorRole: currentUser.neighborhood || 'Comunidade',
       createdAt: 'Agora',
       content,
     };
-    void insertSupabaseComment(postId, newComment, currentUser?.id);
+    void insertSupabaseComment(postId, newComment, currentUser.id);
 
     setPosts((prev) =>
       prev.map((post) => {
@@ -287,13 +424,23 @@ export default function App() {
     );
   };
 
+  // Enforce: after the first real post with login & password, remove invented seed users
   const handlePublishPost = (newPost: EcoPost) => {
     const postWithOwner: EcoPost = {
       ...newPost,
       userId: currentUser?.id,
+      isRealUserPost: true,
     };
     void insertSupabasePost(postWithOwner, currentUser?.id);
-    setPosts((prev) => [postWithOwner, ...prev]);
+    setPosts((prev) => {
+      const onlyRealPosts = prev.filter(
+        (p) => p.isRealUserPost || Boolean(p.userId),
+      );
+      return [postWithOwner, ...onlyRealPosts];
+    });
+    if (postWithOwner.craftSubcategory) {
+      setSelectedCraft(postWithOwner.craftSubcategory);
+    }
     setActiveSection(
       postWithOwner.category === PostCategory.SCRAP_ART ? 'scrap-art' : 'feed',
     );
@@ -309,6 +456,65 @@ export default function App() {
     void deleteSupabasePost(postId, currentUser?.id);
     setPosts((prev) => prev.filter((p) => p.id !== postId));
     setDetailPostId(null);
+  };
+
+  const handleSaveCategoryPhoto = ({
+    photo,
+    beforeAfter,
+  }: {
+    photo: CategoryPhotoEntry;
+    beforeAfter?: Omit<
+      BeforeAfterEntry,
+      | 'id'
+      | 'userId'
+      | 'authorName'
+      | 'authorHandle'
+      | 'authorNeighborhood'
+      | 'authorInitials'
+      | 'createdAt'
+    >;
+  }) => {
+    const photoWithOwner: CategoryPhotoEntry = {
+      ...photo,
+      userId: currentUser?.id,
+    };
+    void insertSupabaseCategoryPhoto(photoWithOwner, currentUser?.id);
+    setCategoryPhotos((prev) => [photoWithOwner, ...prev]);
+    setSelectedCraft(photo.craftCategory);
+
+    if (beforeAfter && currentUser) {
+      const entry: BeforeAfterEntry = {
+        id: `ba-${Date.now()}`,
+        userId: currentUser.id,
+        authorName: currentUser.name,
+        authorHandle: `@${currentUser.name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 14) || 'reciclaoq'}`,
+        authorNeighborhood: currentUser.neighborhood,
+        authorInitials: currentUser.initials,
+        ...beforeAfter,
+        createdAt: 'Agora mesmo',
+      };
+      void insertSupabaseBeforeAfter(entry, currentUser.id);
+      setBeforeAfterEntries((prev) => [entry, ...prev]);
+    }
+  };
+
+  const handleDeleteCategoryPhoto = (photoId: string) => {
+    void deleteSupabaseCategoryPhoto(photoId, currentUser?.id);
+    setCategoryPhotos((prev) => prev.filter((p) => p.id !== photoId));
+  };
+
+  const handleAddBeforeAfter = (entry: BeforeAfterEntry) => {
+    const withOwner: BeforeAfterEntry = {
+      ...entry,
+      userId: currentUser?.id,
+    };
+    void insertSupabaseBeforeAfter(withOwner, currentUser?.id);
+    setBeforeAfterEntries((prev) => [withOwner, ...prev]);
+  };
+
+  const handleDeleteBeforeAfter = (entryId: string) => {
+    void deleteSupabaseBeforeAfter(entryId, currentUser?.id);
+    setBeforeAfterEntries((prev) => prev.filter((e) => e.id !== entryId));
   };
 
   const handleToggleHabit = (habitId: string) => {
@@ -351,7 +557,10 @@ export default function App() {
     );
   };
 
-  const handleToggleChallengeStep = (challengeId: string, stepIndex: number) => {
+  const handleToggleChallengeStep = (
+    challengeId: string,
+    stepIndex: number,
+  ) => {
     setChallenges((prev) =>
       prev.map((ch) => {
         if (ch.id !== challengeId) return ch;
@@ -377,13 +586,27 @@ export default function App() {
   const openComposerWithMaterial = (item: TriageMaterialItem) => {
     setComposerPrefillMaterial(item.material);
     setComposerPrefillCategory(PostCategory.SCRAP_ART);
+    setComposerPrefillCraft(undefined);
     setIsComposerOpen(true);
   };
+
+  const hasAnyRealUserActivity = useMemo(
+    () =>
+      posts.some((p) => p.isRealUserPost || Boolean(p.userId)) ||
+      categoryPhotos.length > 0 ||
+      beforeAfterEntries.length > 0,
+    [posts, categoryPhotos, beforeAfterEntries],
+  );
+
+  const visibleBasePosts = useMemo(() => {
+    if (!hasAnyRealUserActivity) return posts;
+    return posts.filter((p) => p.isRealUserPost || Boolean(p.userId));
+  }, [posts, hasAnyRealUserActivity]);
 
   const filteredPosts = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
 
-    const list = posts.filter((post) => {
+    const list = visibleBasePosts.filter((post) => {
       if (activeSection === 'saved' && !post.savedByMe) return false;
       if (
         activeSection === 'scrap-art' &&
@@ -396,6 +619,9 @@ export default function App() {
         selectedCategory !== PostCategory.ALL &&
         post.category !== selectedCategory
       ) {
+        return false;
+      }
+      if (selectedCraft && post.craftSubcategory !== selectedCraft) {
         return false;
       }
       if (
@@ -434,23 +660,27 @@ export default function App() {
       return b.timestampOrder - a.timestampOrder;
     });
   }, [
-    posts,
+    visibleBasePosts,
     activeSection,
     selectedCategory,
+    selectedCraft,
     selectedMaterial,
     difficultyFilter,
     searchQuery,
     sortBy,
   ]);
 
-  const savedCount = posts.filter((p) => p.savedByMe).length;
-  const activeDetailPost = posts.find((p) => p.id === detailPostId) || null;
+  const savedCount = visibleBasePosts.filter((p) => p.savedByMe).length;
+  const activeDetailPost =
+    visibleBasePosts.find((p) => p.id === detailPostId) || null;
 
-  const userPublishedPosts = posts.filter(
-    (p) => !INITIAL_POSTS.some((seed) => seed.id === p.id),
+  const userPublishedPosts = visibleBasePosts.filter(
+    (p) => p.isRealUserPost || Boolean(p.userId),
   );
   const bonusPoints =
     userPublishedPosts.length * 35 +
+    categoryPhotos.length * 20 +
+    beforeAfterEntries.length * 40 +
     challenges.reduce((sum, ch) => sum + ch.completedSteps.length * 15, 0);
   const bonusKg = userPublishedPosts.reduce(
     (sum, p) => sum + p.wasteAvoidedKg,
@@ -462,7 +692,7 @@ export default function App() {
   const habitKg = completedHabits.reduce((sum, h) => sum + h.kgSaved, 0);
   const totalUserPoints = 140 + habitPoints + bonusPoints;
   const totalUserKg = 3.4 + habitKg + bonusKg;
-  const savedPosts = posts.filter((p) => p.savedByMe);
+  const savedPosts = visibleBasePosts.filter((p) => p.savedByMe);
 
   const openDropOffMap = (
     material: MaterialType = MaterialType.ALL,
@@ -471,22 +701,31 @@ export default function App() {
     setMapModalState({isOpen: true, material, pointId});
   };
 
-  if (!currentUser) {
-    return <LoginScreen onLogin={setCurrentUser} />;
-  }
+  const openComposerGuarded = () => {
+    setComposerPrefillMaterial(undefined);
+    setComposerPrefillCategory(
+      activeSection === 'scrap-art' ? PostCategory.SCRAP_ART : undefined,
+    );
+    setComposerPrefillCraft(selectedCraft || undefined);
+    if (!currentUser) {
+      openAuthModal(
+        'login',
+        'Entre ou crie sua conta para publicar dicas e projetos na comunidade.',
+        {type: 'composer'},
+      );
+      return;
+    }
+    setIsComposerOpen(true);
+  };
 
   return (
     <div className="min-h-screen pb-20 md:pb-12">
       <TopNav
         activeSection={activeSection}
         onSelectSection={handleSelectSection}
-        onOpenComposer={() => {
-          setComposerPrefillMaterial(undefined);
-          setComposerPrefillCategory(
-            activeSection === 'scrap-art' ? PostCategory.SCRAP_ART : undefined,
-          );
-          setIsComposerOpen(true);
-        }}
+        onOpenComposer={openComposerGuarded}
+        isLoggedIn={Boolean(currentUser)}
+        onOpenAuth={(mode) => openAuthModal(mode)}
       />
 
       {/* Main 12-column Ecological Glass Container */}
@@ -499,8 +738,17 @@ export default function App() {
               onSelectSection={handleSelectSection}
               selectedMaterial={selectedMaterial}
               onSelectMaterial={setSelectedMaterial}
+              selectedCraft={selectedCraft}
+              onSelectCraft={setSelectedCraft}
+              onOpenBeforeAfter={() =>
+                setBeforeAfterModalState({
+                  isOpen: true,
+                  craft: selectedCraft || undefined,
+                })
+              }
+              beforeAfterCount={beforeAfterEntries.length}
               savedCount={savedCount}
-              totalPosts={posts.length}
+              totalPosts={visibleBasePosts.length}
             />
           </div>
 
@@ -523,23 +771,39 @@ export default function App() {
                       </h1>
                       <p className="mt-1 text-sm text-[#3d4a42] leading-relaxed">
                         {activeSection === 'scrap-art'
-                          ? 'Projetos criativos da comunidade para transformar garrafas, latas, vidros e papelão em objetos úteis.'
+                          ? 'Explore criações em 3D por categoria, envie fotos do que produzir e compare o Antes e Depois.'
                           : activeSection === 'saved'
                             ? 'Consulte rapidamente os tutoriais e hábitos que você guardou para aplicar em casa.'
                             : 'Compartilhe soluções simples de separação, redução de lixo doméstico e arte feita com sucatas.'}
                       </p>
                     </div>
 
-                    {activeSection === 'feed' && (
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        onClick={() => handleSelectSection('triage')}
-                        className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-[#e0f2fe] px-3.5 py-2 text-xs font-bold text-[#006398] hover:bg-[#cce5ff] whitespace-nowrap shrink-0 transition-colors"
+                        onClick={() =>
+                          setBeforeAfterModalState({
+                            isOpen: true,
+                            craft: selectedCraft || undefined,
+                          })
+                        }
+                        className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-[#e6f7f1] px-3.5 py-2 text-xs font-bold text-[#006948] hover:bg-[#d1fae5] whitespace-nowrap transition-colors"
                       >
-                        <ScanSearch className="h-4 w-4" aria-hidden="true" />
-                        <span>Escanear material</span>
+                        <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+                        <span>Antes e Depois</span>
                       </button>
-                    )}
+
+                      {activeSection === 'feed' && (
+                        <button
+                          type="button"
+                          onClick={() => handleSelectSection('triage')}
+                          className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-[#e0f2fe] px-3.5 py-2 text-xs font-bold text-[#006398] hover:bg-[#cce5ff] whitespace-nowrap transition-colors"
+                        >
+                          <ScanSearch className="h-4 w-4" aria-hidden="true" />
+                          <span>Escanear material</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   {/* Pill Search Bar */}
@@ -552,7 +816,7 @@ export default function App() {
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Buscar por garrafa PET, composteira, lata, papelão..."
+                      placeholder="Buscar por artesanato, jogos, decoração, instrumentos, PET..."
                       aria-label="Buscar dicas e projetos"
                       className="min-h-[44px] w-full rounded-full border border-[#e2e8f0] bg-[#f8fafc] pl-11 pr-11 text-sm text-[#0b1c30] placeholder:text-[#6d7a72] transition-all focus:border-[#0ea5e9] focus:bg-white focus:outline-none focus:ring-3 focus:ring-[#0ea5e9]/15"
                     />
@@ -683,6 +947,32 @@ export default function App() {
                   </div>
                 </section>
 
+                {/* 4 Intuitive Blue & Green Craft Categories with 3D Images, Upload & Before/After */}
+                {(activeSection === 'feed' || activeSection === 'scrap-art') && (
+                  <CreativeCategoriesStrip
+                    selectedCraft={selectedCraft}
+                    onSelectCraft={setSelectedCraft}
+                    onOpenUploadForCraft={(craft) => {
+                      if (!currentUser) {
+                        openAuthModal(
+                          'login',
+                          'Entre ou crie sua conta para enviar fotos nesta categoria.',
+                          {type: 'upload', craft},
+                        );
+                        return;
+                      }
+                      setUploadModalCraft(craft);
+                    }}
+                    onOpenBeforeAfter={(craft) =>
+                      setBeforeAfterModalState({isOpen: true, craft})
+                    }
+                    categoryPhotos={categoryPhotos}
+                    currentUserId={currentUser?.id}
+                    onDeleteCategoryPhoto={handleDeleteCategoryPhoto}
+                    beforeAfterCount={beforeAfterEntries.length}
+                  />
+                )}
+
                 {/* Active Material Filter Notice */}
                 {selectedMaterial !== MaterialType.ALL && (
                   <div className="flex items-center justify-between rounded-2xl bg-[#e0f2fe]/70 px-4 py-2.5 text-xs font-semibold text-[#004b73]">
@@ -709,7 +999,7 @@ export default function App() {
                       Nenhuma publicação encontrada para este filtro
                     </h2>
                     <p className="mt-1 text-sm text-[#3d4a42]">
-                      Limpe a busca ou compartilhe a primeira dica prática com este material.
+                      Limpe a busca ou publique uma dica prática usando sua conta real.
                     </p>
                     <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                       <button
@@ -717,6 +1007,7 @@ export default function App() {
                         onClick={() => {
                           setSearchQuery('');
                           setSelectedCategory(PostCategory.ALL);
+                          setSelectedCraft(null);
                           setSelectedMaterial(MaterialType.ALL);
                           if (activeSection === 'saved') {
                             setActiveSection('feed');
@@ -728,7 +1019,7 @@ export default function App() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setIsComposerOpen(true)}
+                        onClick={openComposerGuarded}
                         className="eco-cta-gradient min-h-[40px] rounded-full px-4 py-2 text-xs font-bold text-white"
                       >
                         Publicar Dica
@@ -776,6 +1067,7 @@ export default function App() {
             <RightSidebar
               currentUser={currentUser}
               onLogout={handleLogout}
+              onOpenAuth={(mode) => openAuthModal(mode)}
               onOpenProfile={() => setIsProfileOpen(true)}
               habits={habits}
               onToggleHabit={handleToggleHabit}
@@ -813,10 +1105,10 @@ export default function App() {
             </button>
             <button
               type="button"
-              onClick={() => handleSelectSection('triage')}
+              onClick={() => setBeforeAfterModalState({isOpen: true})}
               className="hover:text-[#0b1c30]"
             >
-              Scanner de Triagem
+              Antes e Depois
             </button>
             <button
               type="button"
@@ -837,9 +1129,11 @@ export default function App() {
       <PostDetailModal
         post={activeDetailPost}
         canDelete={Boolean(
-          activeDetailPost &&
+          currentUser &&
+            activeDetailPost &&
             ((currentUser.id && activeDetailPost.userId === currentUser.id) ||
-              !INITIAL_POSTS.some((seed) => seed.id === activeDetailPost.id)),
+              (!activeDetailPost.userId &&
+                !INITIAL_POSTS.some((seed) => seed.id === activeDetailPost.id))),
         )}
         onClose={() => setDetailPostId(null)}
         onToggleLike={handleToggleLike}
@@ -855,8 +1149,36 @@ export default function App() {
         onPublish={handlePublishPost}
         prefillMaterial={composerPrefillMaterial}
         prefillCategory={composerPrefillCategory}
-        defaultAuthorName={currentUser.name}
-        defaultNeighborhood={currentUser.neighborhood}
+        prefillCraftSubcategory={composerPrefillCraft}
+        defaultAuthorName={currentUser?.name}
+        defaultNeighborhood={currentUser?.neighborhood}
+      />
+
+      <CategoryPhotoUploadModal
+        isOpen={Boolean(uploadModalCraft)}
+        initialCraft={uploadModalCraft || 'artesanato'}
+        authorName={currentUser?.name || 'Membro'}
+        authorNeighborhood={currentUser?.neighborhood || 'Comunidade'}
+        onClose={() => setUploadModalCraft(null)}
+        onSavePhoto={handleSaveCategoryPhoto}
+      />
+
+      <BeforeAfterModal
+        isOpen={beforeAfterModalState.isOpen}
+        initialCraft={beforeAfterModalState.craft}
+        entries={beforeAfterEntries}
+        currentUser={currentUser}
+        onRequireAuth={() => {
+          setBeforeAfterModalState({isOpen: false});
+          openAuthModal(
+            'login',
+            'Entre ou crie sua conta para registrar fotos no banco Antes e Depois.',
+            {type: 'beforeAfter'},
+          );
+        }}
+        onClose={() => setBeforeAfterModalState({isOpen: false})}
+        onAddEntry={handleAddBeforeAfter}
+        onDeleteEntry={handleDeleteBeforeAfter}
       />
 
       <EcopontosMapModal
@@ -873,20 +1195,35 @@ export default function App() {
         }}
       />
 
-      <ProfileModal
-        isOpen={isProfileOpen}
-        onClose={() => setIsProfileOpen(false)}
-        currentUser={currentUser}
-        onUpdateUser={handleUpdateUser}
-        onLogout={handleLogout}
-        totalPoints={totalUserPoints}
-        totalKg={totalUserKg}
-        completedHabitsCount={completedHabits.length}
-        totalHabitsCount={habits.length}
-        userPosts={userPublishedPosts}
-        savedPosts={savedPosts}
-        onOpenPost={(p) => setDetailPostId(p.id)}
-      />
+      {currentUser && (
+        <ProfileModal
+          isOpen={isProfileOpen}
+          onClose={() => setIsProfileOpen(false)}
+          currentUser={currentUser}
+          onUpdateUser={handleUpdateUser}
+          onLogout={handleLogout}
+          totalPoints={totalUserPoints}
+          totalKg={totalUserKg}
+          completedHabitsCount={completedHabits.length}
+          totalHabitsCount={habits.length}
+          userPosts={userPublishedPosts}
+          savedPosts={savedPosts}
+          onOpenPost={(p) => setDetailPostId(p.id)}
+        />
+      )}
+
+      {authModalState.isOpen && (
+        <LoginScreen
+          isModal
+          initialMode={authModalState.mode}
+          contextMessage={authModalState.message}
+          onLogin={handleAuthSuccess}
+          onContinueAsGuest={() => {
+            setAuthModalState({isOpen: false, mode: 'login'});
+            setPendingAction(null);
+          }}
+        />
+      )}
     </div>
   );
 }

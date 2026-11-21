@@ -18,6 +18,7 @@ export const INITIAL_POSTS: EcoPost[] = [
     createdAt: 'Há 2 horas',
     timestampOrder: 70,
     category: PostCategory.SCRAP_ART,
+    craftSubcategory: 'artesanato',
     material: MaterialType.PET,
     title: 'Horta vertical autoirrigável com garrafas PET de 2 litros',
     summary:
@@ -111,6 +112,7 @@ export const INITIAL_POSTS: EcoPost[] = [
     createdAt: 'Há 6 horas',
     timestampOrder: 50,
     category: PostCategory.SCRAP_ART,
+    craftSubcategory: 'decoracao',
     material: MaterialType.ALUMINUM,
     title: 'Luminária geométrica perfurada com latas de alumínio reutilizadas',
     summary:
@@ -186,6 +188,7 @@ export const INITIAL_POSTS: EcoPost[] = [
     createdAt: 'Ontem',
     timestampOrder: 30,
     category: PostCategory.SCRAP_ART,
+    craftSubcategory: 'decoracao',
     material: MaterialType.CARDBOARD,
     title: 'Organizador modular de mesa com caixas de entregas e jeans velho',
     summary:

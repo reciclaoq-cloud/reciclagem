@@ -1,5 +1,5 @@
 import React from 'react';
-import {Plus} from 'lucide-react';
+import {LogIn, Plus} from 'lucide-react';
 import {NavSection} from '../types/eco';
 import {BrandLogo} from './BrandLogo';
 
@@ -7,6 +7,8 @@ interface TopNavProps {
   activeSection: NavSection;
   onSelectSection: (section: NavSection) => void;
   onOpenComposer: () => void;
+  isLoggedIn: boolean;
+  onOpenAuth: (mode: 'login' | 'register') => void;
 }
 
 const NAV_ITEMS: Array<{id: NavSection; label: string}> = [
@@ -20,10 +22,12 @@ export const TopNav: React.FC<TopNavProps> = ({
   activeSection,
   onSelectSection,
   onOpenComposer,
+  isLoggedIn,
+  onOpenAuth,
 }) => {
   return (
     <header className="sticky top-0 z-40 eco-glass border-b border-[#bccac0]/40">
-      <div className="mx-auto flex h-14 md:h-16 max-w-[1280px] items-center justify-between gap-8 px-4 md:px-6 lg:px-10">
+      <div className="mx-auto flex h-14 md:h-16 max-w-[1280px] items-center justify-between gap-4 md:gap-8 px-4 md:px-6 lg:px-10">
         {/* Zone 1: Single-element Brand Wordmark */}
         <button
           type="button"
@@ -62,8 +66,18 @@ export const TopNav: React.FC<TopNavProps> = ({
           })}
         </nav>
 
-        {/* Zone 3: 1 primary action */}
-        <div className="flex items-center shrink-0">
+        {/* Zone 3: Primary action (+ Entrar if guest) */}
+        <div className="flex items-center gap-2 shrink-0">
+          {!isLoggedIn && (
+            <button
+              type="button"
+              onClick={() => onOpenAuth('login')}
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-[#e0f2fe] px-3.5 py-2 text-xs md:text-sm font-bold text-[#006398] hover:bg-[#cce5ff] whitespace-nowrap shrink-0 transition-colors"
+            >
+              <LogIn className="h-4 w-4" aria-hidden="true" />
+              <span>Entrar</span>
+            </button>
+          )}
           <button
             type="button"
             onClick={onOpenComposer}

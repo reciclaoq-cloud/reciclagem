@@ -4,8 +4,9 @@ import {DropOffPoint, HabitItem, MaterialType} from '../types/eco';
 import {AuthUser} from './LoginScreen';
 
 interface RightSidebarProps {
-  currentUser: AuthUser;
+  currentUser: AuthUser | null;
   onLogout: () => void;
+  onOpenAuth: (mode: 'login' | 'register') => void;
   onOpenProfile: () => void;
   habits: HabitItem[];
   onToggleHabit: (habitId: string) => void;
@@ -20,6 +21,7 @@ interface RightSidebarProps {
 export const RightSidebar: React.FC<RightSidebarProps> = ({
   currentUser,
   onLogout,
+  onOpenAuth,
   onOpenProfile,
   habits,
   onToggleHabit,
@@ -56,37 +58,66 @@ export const RightSidebar: React.FC<RightSidebarProps> = ({
     <aside className="space-y-6">
       {/* Personal Eco-Impact & Daily Habits */}
       <section className="eco-card rounded-3xl p-5" aria-label="Seu impacto diário">
-        <div className="flex items-center justify-between gap-2 pb-4 mb-4 border-b border-[#bccac0]/35">
-          <button
-            type="button"
-            onClick={onOpenProfile}
-            className="flex items-center gap-2.5 min-w-0 text-left group rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0284c7]"
-          >
-            <span
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e0f2fe] text-xs font-bold text-[#006398] group-hover:bg-[#cce5ff] transition-colors"
-              aria-hidden="true"
+        {currentUser ? (
+          <div className="flex items-center justify-between gap-2 pb-4 mb-4 border-b border-[#bccac0]/35">
+            <button
+              type="button"
+              onClick={onOpenProfile}
+              className="flex items-center gap-2.5 min-w-0 text-left group rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0284c7]"
             >
-              {currentUser.initials}
-            </span>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-[#0b1c30] group-hover:text-[#006948] truncate">
-                {currentUser.name}
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#e0f2fe] text-xs font-bold text-[#006398] group-hover:bg-[#cce5ff] transition-colors"
+                aria-hidden="true"
+              >
+                {currentUser.initials}
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-[#0b1c30] group-hover:text-[#006948] truncate">
+                  {currentUser.name}
+                </p>
+                <p className="text-[11px] text-[#6d7a72] truncate">
+                  {currentUser.neighborhood} · Ver perfil
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={onLogout}
+              className="inline-flex min-h-[34px] items-center gap-1 rounded-full bg-[#eff4ff] px-3 py-1 text-xs font-semibold text-[#006398] hover:bg-[#dce9ff] whitespace-nowrap shrink-0 transition-colors"
+            >
+              <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Sair</span>
+            </button>
+          </div>
+        ) : (
+          <div className="pb-4 mb-4 border-b border-[#bccac0]/35 space-y-2.5">
+            <div>
+              <p className="text-xs font-bold text-[#0b1c30]">
+                Visualização livre
               </p>
-              <p className="text-[11px] text-[#6d7a72] truncate">
-                {currentUser.neighborhood} · Ver perfil
+              <p className="text-[11px] text-[#6d7a72]">
+                Entre ou cadastre-se para publicar dicas, enviar fotos e salvar no banco.
               </p>
             </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={onLogout}
-            className="inline-flex min-h-[34px] items-center gap-1 rounded-full bg-[#eff4ff] px-3 py-1 text-xs font-semibold text-[#006398] hover:bg-[#dce9ff] whitespace-nowrap shrink-0 transition-colors"
-          >
-            <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Sair</span>
-          </button>
-        </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => onOpenAuth('login')}
+                className="min-h-[36px] rounded-full bg-[#006948] px-3 text-xs font-bold text-white hover:bg-[#005238] transition-colors"
+              >
+                Entrar
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenAuth('register')}
+                className="min-h-[36px] rounded-full bg-[#006398] px-3 text-xs font-bold text-white hover:bg-[#004f7a] transition-colors"
+              >
+                Criar conta
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-4">
           <div>

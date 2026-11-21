@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ArrowLeftRight,
   Bookmark,
   Compass,
   Filter,
@@ -7,13 +8,18 @@ import {
   ScanSearch,
   Trophy,
 } from 'lucide-react';
-import {MaterialType, NavSection} from '../types/eco';
+import {CraftSubcategory, MaterialType, NavSection} from '../types/eco';
+import {CRAFT_CATEGORIES} from './CreativeCategoriesStrip';
 
 interface LeftSidebarProps {
   activeSection: NavSection;
   onSelectSection: (section: NavSection) => void;
   selectedMaterial: MaterialType;
   onSelectMaterial: (material: MaterialType) => void;
+  selectedCraft: CraftSubcategory | null;
+  onSelectCraft: (craft: CraftSubcategory | null) => void;
+  onOpenBeforeAfter: () => void;
+  beforeAfterCount: number;
   savedCount: number;
   totalPosts: number;
 }
@@ -45,6 +51,10 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
   onSelectSection,
   selectedMaterial,
   onSelectMaterial,
+  selectedCraft,
+  onSelectCraft,
+  onOpenBeforeAfter,
+  beforeAfterCount,
   savedCount,
   totalPosts,
 }) => {
@@ -92,9 +102,71 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
               </button>
             );
           })}
+
+          <button
+            type="button"
+            onClick={onOpenBeforeAfter}
+            className="flex w-full min-h-[44px] items-center justify-between gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-semibold text-[#006398] bg-[#e0f2fe]/60 hover:bg-[#cce5ff] transition-colors duration-150"
+          >
+            <span className="flex items-center gap-3 min-w-0">
+              <ArrowLeftRight className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span className="truncate">Antes e Depois</span>
+            </span>
+            <span className="tabular-nums text-xs font-bold">
+              {beforeAfterCount}
+            </span>
+          </button>
         </nav>
 
         <div className="my-5 border-t border-[#bccac0]/35" />
+
+        <div className="flex items-center justify-between mb-2.5">
+          <h2 className="text-xs font-semibold tracking-wide text-[#6d7a72]">
+            Categorias criativas
+          </h2>
+          {selectedCraft && (
+            <button
+              type="button"
+              onClick={() => onSelectCraft(null)}
+              className="text-xs font-semibold text-[#0284c7] hover:underline"
+            >
+              Limpar
+            </button>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 gap-1.5 mb-5">
+          {CRAFT_CATEGORIES.map((cat) => {
+            const active = selectedCraft === cat.id;
+            const isGreen = cat.colorScheme === 'green';
+            return (
+              <button
+                key={cat.id}
+                type="button"
+                onClick={() => {
+                  onSelectCraft(active ? null : cat.id);
+                  if (activeSection === 'triage' || activeSection === 'challenges') {
+                    onSelectSection('scrap-art');
+                  }
+                }}
+                className={`flex min-h-[38px] items-center gap-2 rounded-full px-3.5 text-xs font-bold transition-colors ${
+                  active
+                    ? isGreen
+                      ? 'bg-[#006948] text-white'
+                      : 'bg-[#006398] text-white'
+                    : isGreen
+                      ? 'bg-[#e6f7f1]/75 text-[#006948] hover:bg-[#d1fae5]'
+                      : 'bg-[#e0f2fe]/75 text-[#006398] hover:bg-[#cce5ff]'
+                }`}
+              >
+                <cat.Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="truncate">{cat.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="my-4 border-t border-[#bccac0]/35" />
 
         <div className="flex items-center justify-between mb-3">
           <h2 className="flex items-center gap-2 text-xs font-semibold tracking-wide text-[#6d7a72]">
@@ -115,8 +187,7 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
         <div className="flex flex-wrap gap-2">
           {MATERIAL_FILTERS.map((material) => {
             const isSelected = selectedMaterial === material;
-            const label =
-              material === MaterialType.ALL ? 'Todos' : material;
+            const label = material === MaterialType.ALL ? 'Todos' : material;
             return (
               <button
                 key={material}
