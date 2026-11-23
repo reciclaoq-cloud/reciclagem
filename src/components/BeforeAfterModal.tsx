@@ -60,7 +60,7 @@ export const BeforeAfterModal: React.FC<BeforeAfterModalProps> = ({
     initialCraft || 'all',
   );
   const [searchTerm, setSearchTerm] = useState('');
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(true);
 
   const [craftCategory, setCraftCategory] = useState<CraftSubcategory>(
     initialCraft || 'artesanato',
@@ -90,12 +90,14 @@ export const BeforeAfterModal: React.FC<BeforeAfterModalProps> = ({
   >({});
 
   const beforeRef = useRef<HTMLInputElement>(null);
+  const beforeCameraRef = useRef<HTMLInputElement>(null);
   const afterRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       setFilterCraft(initialCraft || 'all');
       if (initialCraft) setCraftCategory(initialCraft);
+      setShowAddForm(true);
       setErrorMsg('');
       setAiError('');
     }
@@ -410,13 +412,13 @@ export const BeforeAfterModal: React.FC<BeforeAfterModalProps> = ({
             {/* Photos: 1. ANTES (Mandatory) / 2. DEPOIS (Optional) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="rounded-2xl border border-[#006398]/35 bg-[#eff4ff]/65 p-3.5">
-                <div className="flex items-center justify-between gap-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <span className="text-xs font-extrabold text-[#006398]">
                       1. ANTES (Obrigatório)
                     </span>
                     <p className="text-[11px] text-[#3d4a42]">
-                      Foto do material/sucata para a IA analisar
+                      Envie a foto do material para a IA identificar e sugerir 3 peças
                     </p>
                   </div>
                   <input
@@ -426,33 +428,60 @@ export const BeforeAfterModal: React.FC<BeforeAfterModalProps> = ({
                     onChange={(e) => void handleImagePick(e, 'before')}
                     className="hidden"
                   />
-                  <button
-                    type="button"
-                    disabled={isProcessing}
-                    onClick={() => beforeRef.current?.click()}
-                    className="inline-flex min-h-[34px] shrink-0 items-center gap-1 rounded-full bg-[#006398] px-3 text-xs font-bold text-white"
-                  >
-                    <Upload className="h-3.5 w-3.5" aria-hidden="true" />
-                    <span>{beforeImageUrl ? 'Trocar' : 'Enviar Antes'}</span>
-                  </button>
-                </div>
-                {beforeImageUrl && (
-                  <div className="mt-2.5 flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-[#006398]">
-                    <span className="inline-flex items-center gap-1.5">
-                      <CheckCircle2 className="h-4 w-4 text-[#059669]" aria-hidden="true" />
-                      Foto do Antes carregada para análise da IA
-                    </span>
+                  <input
+                    ref={beforeCameraRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    onChange={(e) => void handleImagePick(e, 'before')}
+                    className="hidden"
+                  />
+                  <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      disabled={isAnalyzingAi}
-                      onClick={() =>
-                        void runAiAnalysis(beforeImageUrl, craftCategory, material)
-                      }
-                      className="inline-flex items-center gap-1 font-bold text-[#006948] hover:underline"
+                      disabled={isProcessing}
+                      onClick={() => beforeRef.current?.click()}
+                      className="inline-flex min-h-[34px] shrink-0 items-center gap-1 rounded-full bg-[#006398] px-3 text-xs font-bold text-white hover:bg-[#004f7a]"
                     >
-                      <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-                      <span>{isAnalyzingAi ? 'Gerando...' : 'Gerar com IA'}</span>
+                      <Upload className="h-3.5 w-3.5" aria-hidden="true" />
+                      <span>{beforeImageUrl ? 'Trocar foto' : 'Enviar foto'}</span>
                     </button>
+                    <button
+                      type="button"
+                      disabled={isProcessing}
+                      onClick={() => beforeCameraRef.current?.click()}
+                      className="inline-flex min-h-[34px] shrink-0 items-center gap-1 rounded-full bg-white border border-[#006398]/30 px-2.5 text-xs font-bold text-[#006398] hover:bg-[#e0f2fe]"
+                    >
+                      <span>Câmera</span>
+                    </button>
+                  </div>
+                </div>
+                {beforeImageUrl && (
+                  <div className="mt-2.5 space-y-2">
+                    <div className="flex h-44 items-center justify-center overflow-hidden rounded-xl border border-[#006398]/20 bg-[#f1f5f9]">
+                      <img
+                        src={beforeImageUrl}
+                        alt="Prévia do material (Antes)"
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-[#006398]">
+                      <span className="inline-flex items-center gap-1.5">
+                        <CheckCircle2 className="h-4 w-4 text-[#059669]" aria-hidden="true" />
+                        Foto do Antes pronta
+                      </span>
+                      <button
+                        type="button"
+                        disabled={isAnalyzingAi}
+                        onClick={() =>
+                          void runAiAnalysis(beforeImageUrl, craftCategory, material)
+                        }
+                        className="inline-flex items-center gap-1 font-bold text-[#006948] hover:underline"
+                      >
+                        <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>{isAnalyzingAi ? 'Gerando...' : 'Gerar 3 peças com IA'}</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -486,11 +515,13 @@ export const BeforeAfterModal: React.FC<BeforeAfterModalProps> = ({
                 </div>
                 {afterImageUrl && (
                   <div className="mt-2.5 relative">
-                    <img
-                      src={afterImageUrl}
-                      alt="Prévia da peça pronta"
-                      className="h-28 w-full rounded-xl object-cover"
-                    />
+                    <div className="flex h-44 items-center justify-center overflow-hidden rounded-xl border border-[#006948]/20 bg-[#f1f5f9]">
+                      <img
+                        src={afterImageUrl}
+                        alt="Prévia da peça pronta"
+                        className="max-h-full max-w-full object-contain"
+                      />
+                    </div>
                     <button
                       type="button"
                       onClick={() => setAfterImageUrl('')}
@@ -740,17 +771,46 @@ export const BeforeAfterModal: React.FC<BeforeAfterModalProps> = ({
                     </p>
                   )}
 
-                  {/* Optional finished piece photo only (scrap photo intentionally omitted) */}
-                  {entry.afterImageUrl && (
-                    <div className="overflow-hidden rounded-2xl border border-[#006948]/25 bg-[#e6f7f1]">
-                      <div className="px-3 py-1.5 text-[11px] font-extrabold text-[#006948] bg-[#d1fae5]">
-                        PEÇA PRONTA · Resultado final
-                      </div>
-                      <img
-                        src={entry.afterImageUrl}
-                        alt={`Peça pronta: ${entry.title}`}
-                        className="h-56 w-full object-cover"
-                      />
+                  {/* Before & After Photos (proportional & sharp with object-contain) */}
+                  {(entry.beforeImageUrl || entry.afterImageUrl) && (
+                    <div
+                      className={`grid gap-3 ${
+                        entry.beforeImageUrl && entry.afterImageUrl
+                          ? 'grid-cols-1 sm:grid-cols-2'
+                          : 'grid-cols-1'
+                      }`}
+                    >
+                      {entry.beforeImageUrl && (
+                        <div className="overflow-hidden rounded-2xl border border-[#006398]/25 bg-[#f1f5f9]">
+                          <div className="px-3 py-1.5 text-[11px] font-extrabold text-[#006398] bg-[#e0f2fe]">
+                            1. ANTES · Material bruto / sucata
+                          </div>
+                          <div className="flex h-64 items-center justify-center p-2">
+                            <img
+                              src={entry.beforeImageUrl}
+                              alt={`Antes: ${entry.title}`}
+                              referrerPolicy="no-referrer"
+                              className="max-h-full max-w-full object-contain rounded-lg"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {entry.afterImageUrl && (
+                        <div className="overflow-hidden rounded-2xl border border-[#006948]/25 bg-[#f1f5f9]">
+                          <div className="px-3 py-1.5 text-[11px] font-extrabold text-[#006948] bg-[#d1fae5]">
+                            2. DEPOIS · Peça pronta
+                          </div>
+                          <div className="flex h-64 items-center justify-center p-2">
+                            <img
+                              src={entry.afterImageUrl}
+                              alt={`Peça pronta: ${entry.title}`}
+                              referrerPolicy="no-referrer"
+                              className="max-h-full max-w-full object-contain rounded-lg"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

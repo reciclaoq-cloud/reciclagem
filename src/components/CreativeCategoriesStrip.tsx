@@ -278,12 +278,12 @@ export const CreativeCategoriesStrip: React.FC<CreativeCategoriesStripProps> = (
                   key={photo.id}
                   className="overflow-hidden rounded-2xl border border-[#bccac0]/40 bg-white"
                 >
-                  <div className="relative h-36 bg-[#eff4ff]">
+                  <div className="relative flex h-48 items-center justify-center overflow-hidden bg-[#f1f5f9]">
                     <img
                       src={photo.imageUrl}
                       alt={photo.title}
                       referrerPolicy="no-referrer"
-                      className="h-full w-full object-cover"
+                      className="max-h-full max-w-full object-contain"
                     />
                   </div>
                   <div className="p-3">

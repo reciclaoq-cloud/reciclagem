@@ -43,6 +43,7 @@ import {
 } from './components/CreativeCategoriesStrip';
 import {CategoryPhotoUploadModal} from './components/CategoryPhotoUploadModal';
 import {BeforeAfterModal} from './components/BeforeAfterModal';
+import {RawMaterialAiTab} from './components/RawMaterialAiTab';
 import {isSupabaseConfigured} from './lib/supabase';
 import {
   deleteSupabaseBeforeAfter,
@@ -112,6 +113,19 @@ export default function App() {
   const [composerPrefillCraft, setComposerPrefillCraft] = useState<
     CraftSubcategory | undefined
   >(undefined);
+  const [composerPrefillTitle, setComposerPrefillTitle] = useState<
+    string | undefined
+  >(undefined);
+  const [composerPrefillSummary, setComposerPrefillSummary] = useState<
+    string | undefined
+  >(undefined);
+  const [composerPrefillMaterialsText, setComposerPrefillMaterialsText] =
+    useState<string | undefined>(undefined);
+  const [composerPrefillStepsText, setComposerPrefillStepsText] = useState<
+    string | undefined
+  >(undefined);
+  const [composerPrefillBeforeImageUrl, setComposerPrefillBeforeImageUrl] =
+    useState<string | undefined>(undefined);
   const [uploadModalCraft, setUploadModalCraft] =
     useState<CraftSubcategory | null>(null);
   const [beforeAfterModalState, setBeforeAfterModalState] = useState<{
@@ -425,6 +439,32 @@ export default function App() {
       );
       return [postWithOwner, ...onlyRealPosts];
     });
+
+    if (postWithOwner.beforeImageUrl) {
+      const baEntry: BeforeAfterEntry = {
+        id: `ba-${Date.now()}`,
+        userId: currentUser.id,
+        authorName: postWithOwner.authorName,
+        authorHandle: postWithOwner.authorHandle,
+        authorNeighborhood: postWithOwner.authorNeighborhood,
+        authorInitials: postWithOwner.authorInitials,
+        craftCategory: postWithOwner.craftSubcategory || 'artesanato',
+        material: postWithOwner.material,
+        title: postWithOwner.title,
+        description: postWithOwner.summary,
+        beforeImageUrl: postWithOwner.beforeImageUrl,
+        afterImageUrl: postWithOwner.customImageUrl,
+        steps: postWithOwner.steps,
+        suggestions: [],
+        createdAt: 'Agora mesmo',
+      };
+      void insertSupabaseBeforeAfter(baEntry, currentUser.id).then((baRes) => {
+        if (baRes.ok) {
+          setBeforeAfterEntries((prev) => [baEntry, ...prev]);
+        }
+      });
+    }
+
     if (postWithOwner.craftSubcategory) {
       setSelectedCraft(postWithOwner.craftSubcategory);
     }
@@ -644,10 +684,43 @@ export default function App() {
     setComposerPrefillMaterial(item.material);
     setComposerPrefillCategory(PostCategory.SCRAP_ART);
     setComposerPrefillCraft(undefined);
+    setComposerPrefillTitle(undefined);
+    setComposerPrefillSummary(undefined);
+    setComposerPrefillMaterialsText(undefined);
+    setComposerPrefillStepsText(undefined);
+    setComposerPrefillBeforeImageUrl(undefined);
     if (!currentUser) {
       openAuthModal(
         'login',
         'Entre ou crie sua conta para publicar sua ideia com este material.',
+        {type: 'composer'},
+      );
+      return;
+    }
+    setIsComposerOpen(true);
+  };
+
+  const openComposerFromAiSuggestion = (params: {
+    title: string;
+    summary: string;
+    material: Exclude<MaterialType, MaterialType.ALL>;
+    craftCategory: CraftSubcategory;
+    materialsNeeded: string[];
+    steps: string[];
+    beforeImageUrl: string;
+  }) => {
+    setComposerPrefillMaterial(params.material);
+    setComposerPrefillCategory(PostCategory.SCRAP_ART);
+    setComposerPrefillCraft(params.craftCategory);
+    setComposerPrefillTitle(params.title);
+    setComposerPrefillSummary(params.summary);
+    setComposerPrefillMaterialsText(params.materialsNeeded.join('\n'));
+    setComposerPrefillStepsText(params.steps.join('\n'));
+    setComposerPrefillBeforeImageUrl(params.beforeImageUrl);
+    if (!currentUser) {
+      openAuthModal(
+        'login',
+        'Entre ou crie sua conta para publicar esta sugestão na comunidade.',
         {type: 'composer'},
       );
       return;
@@ -861,12 +934,33 @@ export default function App() {
     setMapModalState({isOpen: true, material, pointId});
   };
 
+  const findLinkedBeforeAfter = (post: EcoPost): BeforeAfterEntry | undefined => {
+    const cleanTitle = normalizeSearchText(post.title);
+    return (
+      beforeAfterEntries.find(
+        (entry) => normalizeSearchText(entry.title) === cleanTitle,
+      ) ||
+      beforeAfterEntries.find(
+        (entry) =>
+          Boolean(post.userId && entry.userId === post.userId) &&
+          entry.material === post.material &&
+          (!post.craftSubcategory ||
+            entry.craftCategory === post.craftSubcategory),
+      )
+    );
+  };
+
   const openComposerGuarded = () => {
     setComposerPrefillMaterial(undefined);
     setComposerPrefillCategory(
       activeSection === 'scrap-art' ? PostCategory.SCRAP_ART : undefined,
     );
     setComposerPrefillCraft(selectedCraft || undefined);
+    setComposerPrefillTitle(undefined);
+    setComposerPrefillSummary(undefined);
+    setComposerPrefillMaterialsText(undefined);
+    setComposerPrefillStepsText(undefined);
+    setComposerPrefillBeforeImageUrl(undefined);
     if (!currentUser) {
       openAuthModal(
         'login',
@@ -1378,6 +1472,7 @@ export default function App() {
                       <PostCard
                         key={post.id}
                         post={post}
+                        linkedBeforeAfter={findLinkedBeforeAfter(post)}
                         onToggleLike={handleToggleLike}
                         onToggleVerify={handleToggleVerify}
                         onToggleSave={handleToggleSave}
@@ -1388,6 +1483,14 @@ export default function App() {
                   </div>
                 )}
               </>
+            )}
+
+            {activeSection === 'ai-reuse' && (
+              <RawMaterialAiTab
+                currentUser={currentUser}
+                onSaveToBeforeAfter={handleAddBeforeAfter}
+                onPublishSuggestionAsPost={openComposerFromAiSuggestion}
+              />
             )}
 
             {activeSection === 'triage' && (
@@ -1469,6 +1572,9 @@ export default function App() {
 
       <PostDetailModal
         post={activeDetailPost}
+        linkedBeforeAfter={
+          activeDetailPost ? findLinkedBeforeAfter(activeDetailPost) : undefined
+        }
         canDelete={Boolean(
           currentUser &&
             activeDetailPost &&
@@ -1491,6 +1597,11 @@ export default function App() {
         prefillMaterial={composerPrefillMaterial}
         prefillCategory={composerPrefillCategory}
         prefillCraftSubcategory={composerPrefillCraft}
+        prefillTitle={composerPrefillTitle}
+        prefillSummary={composerPrefillSummary}
+        prefillMaterialsText={composerPrefillMaterialsText}
+        prefillStepsText={composerPrefillStepsText}
+        prefillBeforeImageUrl={composerPrefillBeforeImageUrl}
         defaultAuthorName={currentUser?.name}
         defaultNeighborhood={currentUser?.neighborhood || 'Santo André, SP'}
       />

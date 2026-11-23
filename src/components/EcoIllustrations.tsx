@@ -34,6 +34,21 @@ export const EcoIllustration: React.FC<EcoIllustrationProps> = ({
   const resolvedSrc = customImageUrl || THEME_3D_IMAGE[theme];
 
   if (!imgError && resolvedSrc) {
+    if (customImageUrl) {
+      return (
+        <div
+          className={`relative flex items-center justify-center overflow-hidden rounded-2xl border border-[#bccac0]/35 bg-[#f1f5f9] ${className}`}
+        >
+          <img
+            src={customImageUrl}
+            alt={alt}
+            referrerPolicy="no-referrer"
+            onError={() => setImgError(true)}
+            className="max-h-[380px] w-full h-auto object-contain"
+          />
+        </div>
+      );
+    }
     return (
       <div
         className={`relative overflow-hidden rounded-2xl border border-[#bccac0]/35 bg-gradient-to-br from-[#eff4ff] via-[#f8f9ff] to-[#e6f7f1] ${className}`}

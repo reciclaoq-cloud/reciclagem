@@ -35,7 +35,13 @@ export type IllustrationTheme =
   | 'craft-decoracao'
   | 'craft-instrumentos';
 
-export type NavSection = 'feed' | 'scrap-art' | 'triage' | 'challenges' | 'saved';
+export type NavSection =
+  | 'feed'
+  | 'scrap-art'
+  | 'ai-reuse'
+  | 'triage'
+  | 'challenges'
+  | 'saved';
 
 export interface EcoComment {
   id: string;
@@ -68,6 +74,7 @@ export interface EcoPost {
   wasteAvoidedKg: number;
   illustration: IllustrationTheme;
   customImageUrl?: string;
+  beforeImageUrl?: string;
   likes: number;
   likedByMe?: boolean;
   verifiedCount: number;
@@ -93,6 +100,8 @@ export interface BeforeAfterSuggestion {
   difficulty: string;
   estimatedTime: string;
   summary: string;
+  suggestedCategory?: CraftSubcategory;
+  extraMaterials?: string[];
   steps?: string[];
 }
 

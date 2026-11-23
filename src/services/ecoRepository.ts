@@ -41,6 +41,7 @@ interface DbPostRow {
   waste_avoided_kg: number;
   illustration: string;
   custom_image_url: string | null;
+  before_image_url?: string | null;
   likes: number;
   verified_count: number;
   created_at: string;
@@ -344,6 +345,7 @@ export async function fetchSupabasePosts(): Promise<EcoPost[] | null> {
       wasteAvoidedKg: Number(row.waste_avoided_kg) || 0.3,
       illustration: (row.illustration as IllustrationTheme) || 'craft-artesanato',
       customImageUrl: row.custom_image_url || undefined,
+      beforeImageUrl: row.before_image_url || undefined,
       likes: row.likes || 0,
       verifiedCount: row.verified_count || 0,
       comments: commentsByPost.get(row.id) || [],
@@ -383,7 +385,7 @@ export async function insertSupabasePost(
     return {ok: false, error: 'Faça login no Supabase para publicar.'};
   }
   try {
-    const {error} = await supabase.from('eco_posts').insert({
+    const basePostPayload = {
       id: post.id,
       user_id: userId,
       author_name: post.authorName,
@@ -404,7 +406,21 @@ export async function insertSupabasePost(
       custom_image_url: post.customImageUrl || null,
       likes: post.likes,
       verified_count: post.verifiedCount,
-    });
+    };
+
+    const fullPostPayload: Record<string, unknown> = post.beforeImageUrl
+      ? {...basePostPayload, before_image_url: post.beforeImageUrl}
+      : basePostPayload;
+
+    const {error} = await supabase.from('eco_posts').insert(fullPostPayload);
+
+    if (error && post.beforeImageUrl && error.message.includes('before_image_url')) {
+      const retry = await supabase.from('eco_posts').insert(basePostPayload);
+      return retry.error
+        ? {ok: false, error: retry.error.message}
+        : {ok: true};
+    }
+
     return error ? {ok: false, error: error.message} : {ok: true};
   } catch (err) {
     return {
@@ -646,6 +662,7 @@ export async function deleteSupabaseBeforeAfter(
 export interface BeforeAfterAiResult {
   suggestedTitle: string;
   identifiedMaterial: string;
+  preparationTip: string;
   steps: string[];
   suggestions: BeforeAfterSuggestion[];
 }
@@ -653,7 +670,7 @@ export interface BeforeAfterAiResult {
 export async function analyzeBeforeAfterWithAI(params: {
   imageDataUrl: string;
   material: string;
-  craftCategory: CraftSubcategory;
+  craftCategory: CraftSubcategory | 'auto';
   title?: string;
   description?: string;
 }): Promise<BeforeAfterAiResult> {
@@ -673,8 +690,38 @@ export async function analyzeBeforeAfterWithAI(params: {
   return {
     suggestedTitle: payload.suggestedTitle || '',
     identifiedMaterial: payload.identifiedMaterial || params.material,
+    preparationTip: payload.preparationTip || '',
     steps: Array.isArray(payload.steps) ? payload.steps : [],
     suggestions: Array.isArray(payload.suggestions) ? payload.suggestions : [],
+  };
+}
+
+export interface TriageAiResult {
+  catalogId: string;
+  detectedLabel: string;
+  quickTip: string;
+}
+
+export async function analyzeTriageWithAI(
+  imageDataUrl: string,
+): Promise<TriageAiResult> {
+  const response = await fetch('/api/triage-ai', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({imageDataUrl}),
+  });
+  const payload = (await response.json()) as Partial<TriageAiResult> & {
+    error?: string;
+  };
+  if (!response.ok) {
+    throw new Error(
+      payload.error || 'Não foi possível identificar o material com a IA.',
+    );
+  }
+  return {
+    catalogId: payload.catalogId || 'tr-pet',
+    detectedLabel: payload.detectedLabel || 'Material identificado',
+    quickTip: payload.quickTip || '',
   };
 }
 

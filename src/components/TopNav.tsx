@@ -14,6 +14,7 @@ interface TopNavProps {
 const NAV_ITEMS: Array<{id: NavSection; label: string}> = [
   {id: 'feed', label: 'Comunidade'},
   {id: 'scrap-art', label: 'Arte com Sucata'},
+  {id: 'ai-reuse', label: 'Sugestões IA'},
   {id: 'triage', label: 'Guia de Triagem'},
   {id: 'challenges', label: 'Desafios'},
 ];

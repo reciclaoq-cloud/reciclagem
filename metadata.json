@@ -1,6 +1,6 @@
 {
   "name": "EcoCiclo",
   "description": "Rede social de sustentabilidade para compartilhar dicas práticas de reciclagem, redução diária de desperdícios e projetos criativos de arte com sucatas.",
-  "requestFramePermissions": [],
+  "requestFramePermissions": ["camera"],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

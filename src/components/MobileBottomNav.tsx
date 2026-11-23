@@ -1,5 +1,12 @@
 import React from 'react';
-import {Bookmark, Compass, Palette, ScanSearch, Trophy} from 'lucide-react';
+import {
+  Bookmark,
+  Compass,
+  Palette,
+  ScanSearch,
+  Sparkles,
+  Trophy,
+} from 'lucide-react';
 import {NavSection} from '../types/eco';
 
 interface MobileBottomNavProps {
@@ -14,6 +21,7 @@ const MOBILE_TABS: Array<{
 }> = [
   {id: 'feed', label: 'Feed', Icon: Compass},
   {id: 'scrap-art', label: 'Sucata', Icon: Palette},
+  {id: 'ai-reuse', label: 'IA', Icon: Sparkles},
   {id: 'triage', label: 'Triagem', Icon: ScanSearch},
   {id: 'challenges', label: 'Desafios', Icon: Trophy},
   {id: 'saved', label: 'Salvos', Icon: Bookmark},
@@ -28,7 +36,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       className="fixed bottom-0 left-0 right-0 z-40 md:hidden eco-glass border-t border-[#bccac0]/45"
       aria-label="Navegação rápida"
     >
-      <div className="grid grid-cols-5 h-14 items-center px-1">
+      <div className="grid grid-cols-6 h-14 items-center px-1">
         {MOBILE_TABS.map(({id, label, Icon}) => {
           const isActive = activeSection === id;
           return (

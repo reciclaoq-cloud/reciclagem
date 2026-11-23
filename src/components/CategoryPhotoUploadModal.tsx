@@ -280,11 +280,11 @@ export const CategoryPhotoUploadModal: React.FC<
             </div>
 
             {afterImageUrl && (
-              <div className="mt-3 overflow-hidden rounded-xl border border-[#bccac0]/40 bg-white">
+              <div className="mt-3 flex h-56 items-center justify-center overflow-hidden rounded-xl border border-[#bccac0]/40 bg-[#f1f5f9] p-1.5">
                 <img
                   src={afterImageUrl}
                   alt="Prévia da peça pronta"
-                  className="h-44 w-full object-cover"
+                  className="max-h-full max-w-full object-contain rounded-lg"
                 />
               </div>
             )}
@@ -324,11 +324,11 @@ export const CategoryPhotoUploadModal: React.FC<
 
             {beforeImageUrl && (
               <div className="mt-3 space-y-2">
-                <div className="overflow-hidden rounded-xl border border-[#bccac0]/40 bg-white">
+                <div className="flex h-48 items-center justify-center overflow-hidden rounded-xl border border-[#bccac0]/40 bg-[#f1f5f9] p-1.5">
                   <img
                     src={beforeImageUrl}
                     alt="Prévia do material antes"
-                    className="h-36 w-full object-cover"
+                    className="max-h-full max-w-full object-contain rounded-lg"
                   />
                 </div>
                 <input

@@ -9,11 +9,12 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import {EcoPost} from '../types/eco';
+import {BeforeAfterEntry, EcoPost} from '../types/eco';
 import {EcoIllustration} from './EcoIllustrations';
 
 interface PostDetailModalProps {
   post: EcoPost | null;
+  linkedBeforeAfter?: BeforeAfterEntry;
   canDelete?: boolean;
   onClose: () => void;
   onToggleLike: (postId: string) => void;
@@ -25,6 +26,7 @@ interface PostDetailModalProps {
 
 export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   post,
+  linkedBeforeAfter,
   canDelete = false,
   onClose,
   onToggleLike,
@@ -39,6 +41,10 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   if (!post) return null;
+
+  const beforeImg = post.beforeImageUrl || linkedBeforeAfter?.beforeImageUrl;
+  const afterImg = post.customImageUrl || linkedBeforeAfter?.afterImageUrl;
+  const hasBeforeAfterPair = Boolean(beforeImg && afterImg);
 
   const handleCopyTip = async () => {
     const text = [
@@ -128,12 +134,47 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
         </p>
 
         <div className="mt-4">
-          <EcoIllustration
-            theme={post.illustration}
-            customImageUrl={post.customImageUrl}
-            alt={post.title}
-            className="h-56 sm:h-64 w-full"
-          />
+          {hasBeforeAfterPair ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="overflow-hidden rounded-2xl border border-[#006398]/25 bg-[#f1f5f9]">
+                <div className="bg-[#e0f2fe] px-3 py-1.5 text-[11px] font-extrabold text-[#006398]">
+                  1. ANTES · Material / Sucata
+                </div>
+                <div className="flex h-64 items-center justify-center p-2">
+                  <img
+                    src={beforeImg}
+                    alt={`Antes: ${post.title}`}
+                    referrerPolicy="no-referrer"
+                    className="max-h-full max-w-full object-contain rounded-lg"
+                  />
+                </div>
+              </div>
+              <div className="overflow-hidden rounded-2xl border border-[#006948]/25 bg-[#f1f5f9]">
+                <div className="bg-[#d1fae5] px-3 py-1.5 text-[11px] font-extrabold text-[#006948]">
+                  2. DEPOIS · Peça pronta
+                </div>
+                <div className="flex h-64 items-center justify-center p-2">
+                  <img
+                    src={afterImg}
+                    alt={`Depois: ${post.title}`}
+                    referrerPolicy="no-referrer"
+                    className="max-h-full max-w-full object-contain rounded-lg"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <EcoIllustration
+              theme={post.illustration}
+              customImageUrl={post.customImageUrl || beforeImg}
+              alt={post.title}
+              className={
+                post.customImageUrl || beforeImg
+                  ? 'w-full'
+                  : 'h-56 sm:h-64 w-full'
+              }
+            />
+          )}
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-semibold text-[#3d4a42] tabular-nums">

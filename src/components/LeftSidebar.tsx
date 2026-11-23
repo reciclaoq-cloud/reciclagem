@@ -6,6 +6,7 @@ import {
   Filter,
   Palette,
   ScanSearch,
+  Sparkles,
   Trophy,
 } from 'lucide-react';
 import {CraftSubcategory, MaterialType, NavSection} from '../types/eco';
@@ -31,6 +32,7 @@ const COMMUNITY_LINKS: Array<{
 }> = [
   {id: 'feed', label: 'Feed da Comunidade', Icon: Compass},
   {id: 'scrap-art', label: 'Arte com Sucata', Icon: Palette},
+  {id: 'ai-reuse', label: 'Reutilização com IA', Icon: Sparkles},
   {id: 'triage', label: 'Guia de Triagem', Icon: ScanSearch},
   {id: 'challenges', label: 'Desafios Diários', Icon: Trophy},
   {id: 'saved', label: 'Dicas Salvas', Icon: Bookmark},
@@ -145,7 +147,11 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 type="button"
                 onClick={() => {
                   onSelectCraft(active ? null : cat.id);
-                  if (activeSection === 'triage' || activeSection === 'challenges') {
+                  if (
+                    activeSection === 'triage' ||
+                    activeSection === 'challenges' ||
+                    activeSection === 'ai-reuse'
+                  ) {
                     onSelectSection('scrap-art');
                   }
                 }}
@@ -194,7 +200,11 @@ export const LeftSidebar: React.FC<LeftSidebarProps> = ({
                 type="button"
                 onClick={() => {
                   onSelectMaterial(material);
-                  if (activeSection === 'triage' || activeSection === 'challenges') {
+                  if (
+                    activeSection === 'triage' ||
+                    activeSection === 'challenges' ||
+                    activeSection === 'ai-reuse'
+                  ) {
                     onSelectSection('feed');
                   }
                 }}

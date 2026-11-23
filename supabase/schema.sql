@@ -34,6 +34,7 @@ create table if not exists public.eco_posts (
   waste_avoided_kg numeric not null default 0.5,
   illustration text not null default 'craft-artesanato',
   custom_image_url text,
+  before_image_url text,
   likes integer not null default 0,
   verified_count integer not null default 0,
   created_at timestamptz not null default now()
@@ -41,6 +42,9 @@ create table if not exists public.eco_posts (
 
 alter table public.eco_posts
   add column if not exists craft_subcategory text;
+
+alter table public.eco_posts
+  add column if not exists before_image_url text;
 
 -- 3. Tabela de Comentários nas Publicações
 create table if not exists public.eco_comments (

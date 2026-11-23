@@ -7,11 +7,17 @@ import {
   MapPin,
   MessageCircle,
 } from 'lucide-react';
-import {EcoPost, MaterialType, PostCategory} from '../types/eco';
+import {
+  BeforeAfterEntry,
+  EcoPost,
+  MaterialType,
+  PostCategory,
+} from '../types/eco';
 import {EcoIllustration} from './EcoIllustrations';
 
 interface PostCardProps {
   post: EcoPost;
+  linkedBeforeAfter?: BeforeAfterEntry;
   onToggleLike: (postId: string) => void;
   onToggleVerify: (postId: string) => void;
   onToggleSave: (postId: string) => void;
@@ -34,6 +40,7 @@ const CRAFT_SUB_LABEL: Record<string, string> = {
 
 export const PostCard: React.FC<PostCardProps> = ({
   post,
+  linkedBeforeAfter,
   onToggleLike,
   onToggleVerify,
   onToggleSave,
@@ -41,6 +48,9 @@ export const PostCard: React.FC<PostCardProps> = ({
   onLocateBin,
 }) => {
   const wasteLabel = post.wasteAvoidedKg.toFixed(2).replace('.', ',');
+  const beforeImg = post.beforeImageUrl || linkedBeforeAfter?.beforeImageUrl;
+  const afterImg = post.customImageUrl || linkedBeforeAfter?.afterImageUrl;
+  const hasBeforeAfterPair = Boolean(beforeImg && afterImg);
 
   return (
     <article className="eco-card rounded-3xl p-5 sm:p-6 transition-shadow duration-200 hover:shadow-[0_14px_34px_rgba(2,132,199,0.08)]">
@@ -115,19 +125,54 @@ export const PostCard: React.FC<PostCardProps> = ({
         </p>
       </div>
 
-      {/* Visual Thumbnail */}
+      {/* Visual Thumbnail / Antes e Depois */}
       <button
         type="button"
         onClick={() => onOpenDetail(post)}
         className="mt-4 block w-full text-left rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0284c7]"
         aria-label={`Abrir tutorial completo: ${post.title}`}
       >
-        <EcoIllustration
-          theme={post.illustration}
-          customImageUrl={post.customImageUrl}
-          alt={post.title}
-          className="h-52 sm:h-60 w-full transition-transform duration-200 hover:scale-[1.008]"
-        />
+        {hasBeforeAfterPair ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div className="overflow-hidden rounded-2xl border border-[#006398]/25 bg-[#f1f5f9]">
+              <div className="bg-[#e0f2fe] px-3 py-1 text-[11px] font-extrabold text-[#006398]">
+                1. ANTES · Material
+              </div>
+              <div className="flex h-52 items-center justify-center p-1.5">
+                <img
+                  src={beforeImg}
+                  alt={`Antes: ${post.title}`}
+                  referrerPolicy="no-referrer"
+                  className="max-h-full max-w-full object-contain rounded-lg"
+                />
+              </div>
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-[#006948]/25 bg-[#f1f5f9]">
+              <div className="bg-[#d1fae5] px-3 py-1 text-[11px] font-extrabold text-[#006948]">
+                2. DEPOIS · Peça pronta
+              </div>
+              <div className="flex h-52 items-center justify-center p-1.5">
+                <img
+                  src={afterImg}
+                  alt={`Depois: ${post.title}`}
+                  referrerPolicy="no-referrer"
+                  className="max-h-full max-w-full object-contain rounded-lg"
+                />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <EcoIllustration
+            theme={post.illustration}
+            customImageUrl={post.customImageUrl || beforeImg}
+            alt={post.title}
+            className={
+              post.customImageUrl || beforeImg
+                ? 'w-full transition-transform duration-200 hover:scale-[1.005]'
+                : 'h-52 sm:h-60 w-full transition-transform duration-200 hover:scale-[1.008]'
+            }
+          />
+        )}
       </button>
 
       {/* Unboxed Quantitative Specs Line */}

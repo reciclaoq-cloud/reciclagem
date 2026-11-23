@@ -17,6 +17,11 @@ interface CreatePostModalProps {
   prefillMaterial?: Exclude<MaterialType, MaterialType.ALL>;
   prefillCategory?: Exclude<PostCategory, PostCategory.ALL>;
   prefillCraftSubcategory?: CraftSubcategory;
+  prefillTitle?: string;
+  prefillSummary?: string;
+  prefillMaterialsText?: string;
+  prefillStepsText?: string;
+  prefillBeforeImageUrl?: string;
   defaultAuthorName?: string;
   defaultNeighborhood?: string;
 }
@@ -46,6 +51,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   prefillMaterial,
   prefillCategory,
   prefillCraftSubcategory,
+  prefillTitle,
+  prefillSummary,
+  prefillMaterialsText,
+  prefillStepsText,
+  prefillBeforeImageUrl,
   defaultAuthorName,
   defaultNeighborhood,
 }) => {
@@ -58,16 +68,19 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [material, setMaterial] = useState<Exclude<MaterialType, MaterialType.ALL>>(
     prefillMaterial || MaterialType.PET,
   );
-  const [title, setTitle] = useState('');
-  const [summary, setSummary] = useState('');
-  const [materialsText, setMaterialsText] = useState('');
-  const [stepsText, setStepsText] = useState('');
+  const [title, setTitle] = useState(prefillTitle || '');
+  const [summary, setSummary] = useState(prefillSummary || '');
+  const [materialsText, setMaterialsText] = useState(prefillMaterialsText || '');
+  const [stepsText, setStepsText] = useState(prefillStepsText || '');
   const [estimatedTime, setEstimatedTime] = useState('20 min');
   const [wasteAvoidedKg, setWasteAvoidedKg] = useState('0.5');
   const [illustration, setIllustration] =
     useState<IllustrationTheme>('craft-artesanato');
   const [customImageUrl, setCustomImageUrl] = useState<string | undefined>(
     undefined,
+  );
+  const [beforeImageUrl, setBeforeImageUrl] = useState<string | undefined>(
+    prefillBeforeImageUrl,
   );
   const [authorName, setAuthorName] = useState(defaultAuthorName || 'Você');
   const [neighborhood, setNeighborhood] = useState(
@@ -76,12 +89,29 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   const [errorMsg, setErrorMsg] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const beforeFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (prefillMaterial) setMaterial(prefillMaterial);
     if (prefillCategory) setCategory(prefillCategory);
     if (prefillCraftSubcategory) setCraftSubcategory(prefillCraftSubcategory);
-  }, [prefillMaterial, prefillCategory, prefillCraftSubcategory]);
+    if (prefillTitle !== undefined) setTitle(prefillTitle);
+    if (prefillSummary !== undefined) setSummary(prefillSummary);
+    if (prefillMaterialsText !== undefined) setMaterialsText(prefillMaterialsText);
+    if (prefillStepsText !== undefined) setStepsText(prefillStepsText);
+    if (prefillBeforeImageUrl !== undefined) {
+      setBeforeImageUrl(prefillBeforeImageUrl);
+    }
+  }, [
+    prefillMaterial,
+    prefillCategory,
+    prefillCraftSubcategory,
+    prefillTitle,
+    prefillSummary,
+    prefillMaterialsText,
+    prefillStepsText,
+    prefillBeforeImageUrl,
+  ]);
 
   useEffect(() => {
     if (defaultAuthorName) setAuthorName(defaultAuthorName);
@@ -90,12 +120,19 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    target: 'after' | 'before' = 'after',
+  ) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
       const compressed = await compressImageFile(file);
-      setCustomImageUrl(compressed);
+      if (target === 'before') {
+        setBeforeImageUrl(compressed);
+      } else {
+        setCustomImageUrl(compressed);
+      }
       setErrorMsg('');
     } catch (err) {
       setErrorMsg(
@@ -162,6 +199,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       wasteAvoidedKg: parsedKg,
       illustration,
       customImageUrl,
+      beforeImageUrl,
       likes: 1,
       likedByMe: true,
       verifiedCount: 1,
@@ -175,6 +213,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     setMaterialsText('');
     setStepsText('');
     setCustomImageUrl(undefined);
+    setBeforeImageUrl(undefined);
     setErrorMsg('');
     onClose();
   };
@@ -463,38 +502,96 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             </div>
           </div>
 
-          {/* Optional Local Photo Upload */}
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-[#eff4ff] px-4 py-3">
-            <div className="text-xs text-[#3d4a42]">
-              {customImageUrl
-                ? 'Foto do projeto anexada com sucesso.'
-                : 'Opcional: envie uma foto real do seu projeto ou material.'}
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={(e) => void handlePhotoUpload(e)}
-                className="hidden"
-              />
-              {customImageUrl && (
-                <button
-                  type="button"
-                  onClick={() => setCustomImageUrl(undefined)}
-                  className="text-xs font-semibold text-[#ba1a1a] hover:underline"
-                >
-                  Remover foto
-                </button>
+          {/* Before & After Optional Photo Uploads */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-2xl bg-[#eff4ff] p-3.5 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-semibold text-[#006398]">
+                  {beforeImageUrl
+                    ? '1. ANTES anexado'
+                    : '1. ANTES · Foto do material (opcional)'}
+                </div>
+                <input
+                  ref={beforeFileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => void handlePhotoUpload(e, 'before')}
+                  className="hidden"
+                />
+                <div className="flex items-center gap-2">
+                  {beforeImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setBeforeImageUrl(undefined)}
+                      className="text-[11px] font-semibold text-[#ba1a1a] hover:underline"
+                    >
+                      Remover
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => beforeFileInputRef.current?.click()}
+                    className="inline-flex min-h-[34px] items-center gap-1 rounded-full bg-white px-3 text-xs font-bold text-[#006398] shadow-xs hover:bg-[#f8f9ff]"
+                  >
+                    <ImagePlus className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>{beforeImageUrl ? 'Trocar' : 'Anexar Antes'}</span>
+                  </button>
+                </div>
+              </div>
+              {beforeImageUrl && (
+                <div className="flex h-36 items-center justify-center overflow-hidden rounded-xl bg-white p-1">
+                  <img
+                    src={beforeImageUrl}
+                    alt="Prévia do Antes"
+                    className="max-h-full max-w-full object-contain rounded-lg"
+                  />
+                </div>
               )}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="inline-flex min-h-[36px] items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-xs font-bold text-[#006398] shadow-xs hover:bg-[#f8f9ff]"
-              >
-                <ImagePlus className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>{customImageUrl ? 'Trocar foto' : 'Anexar foto'}</span>
-              </button>
+            </div>
+
+            <div className="rounded-2xl bg-[#e6f7f1]/75 p-3.5 space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="text-xs font-semibold text-[#006948]">
+                  {customImageUrl
+                    ? '2. DEPOIS anexado'
+                    : '2. DEPOIS · Foto da peça pronta'}
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => void handlePhotoUpload(e, 'after')}
+                  className="hidden"
+                />
+                <div className="flex items-center gap-2">
+                  {customImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setCustomImageUrl(undefined)}
+                      className="text-[11px] font-semibold text-[#ba1a1a] hover:underline"
+                    >
+                      Remover
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex min-h-[34px] items-center gap-1 rounded-full bg-white px-3 text-xs font-bold text-[#006948] shadow-xs hover:bg-[#f8f9ff]"
+                  >
+                    <ImagePlus className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>{customImageUrl ? 'Trocar' : 'Anexar Depois'}</span>
+                  </button>
+                </div>
+              </div>
+              {customImageUrl && (
+                <div className="flex h-36 items-center justify-center overflow-hidden rounded-xl bg-white p-1">
+                  <img
+                    src={customImageUrl}
+                    alt="Prévia do Depois"
+                    className="max-h-full max-w-full object-contain rounded-lg"
+                  />
+                </div>
+              )}
             </div>
           </div>
 

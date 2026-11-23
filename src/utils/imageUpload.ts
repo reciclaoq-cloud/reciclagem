@@ -1,7 +1,7 @@
 export async function compressImageFile(
   file: File,
-  maxDimension = 960,
-  quality = 0.8,
+  maxDimension = 1400,
+  quality = 0.9,
 ): Promise<string> {
   if (!file.type.startsWith('image/')) {
     throw new Error('Selecione um arquivo de imagem válido (JPG, PNG ou WebP).');
@@ -42,6 +42,8 @@ export async function compressImageFile(
         resolve(rawDataUrl);
         return;
       }
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(img, 0, 0, width, height);
       try {
         resolve(canvas.toDataURL('image/jpeg', quality));
