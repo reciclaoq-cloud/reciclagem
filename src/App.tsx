@@ -40,7 +40,7 @@ import {ProfileModal} from './components/ProfileModal';
 import {CreativeCategoriesStrip} from './components/CreativeCategoriesStrip';
 import {CategoryPhotoUploadModal} from './components/CategoryPhotoUploadModal';
 import {BeforeAfterModal} from './components/BeforeAfterModal';
-import {isSupabaseConfigured, supabaseConfigMessage} from './lib/supabase';
+import {isSupabaseConfigured} from './lib/supabase';
 import {
   deleteSupabaseBeforeAfter,
   deleteSupabaseCategoryPhoto,
@@ -80,9 +80,7 @@ export default function App() {
   const [isLoadingData, setIsLoadingData] = useState<boolean>(
     isSupabaseConfigured,
   );
-  const [syncError, setSyncError] = useState<string | null>(
-    supabaseConfigMessage,
-  );
+  const [syncError, setSyncError] = useState<string | null>(null);
 
   const [activeSection, setActiveSection] = useState<NavSection>('feed');
   const [selectedCategory, setSelectedCategory] = useState<PostCategory>(
@@ -167,17 +165,7 @@ export default function App() {
       ]);
       if (!active) return;
 
-      if (
-        remotePosts === null ||
-        remoteCategoryPhotos === null ||
-        remoteBeforeAfter === null
-      ) {
-        setSyncError(
-          'Não foi possível ler os dados no Supabase. Verifique se o SQL de supabase/schema.sql foi executado e se VITE_SUPABASE_URL é apenas https://seu-projeto.supabase.co.',
-        );
-      } else {
-        setSyncError(null);
-      }
+      setSyncError(null);
 
       const safePhotos = remoteCategoryPhotos || [];
       const safeBeforeAfter = remoteBeforeAfter || [];
