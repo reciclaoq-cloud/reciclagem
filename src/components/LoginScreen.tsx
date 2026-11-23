@@ -9,7 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import {BrandLogo} from './BrandLogo';
-import {isSupabaseConfigured} from '../lib/supabase';
+import {isSupabaseConfigured, supabaseConfigMessage} from '../lib/supabase';
 import {signInSupabase, signUpSupabase} from '../services/ecoRepository';
 
 export interface AuthUser {
@@ -21,47 +21,12 @@ export interface AuthUser {
   initials: string;
 }
 
-interface StoredAccount extends AuthUser {
-  password: string;
-}
-
 interface LoginScreenProps {
   onLogin: (user: AuthUser) => void;
   onContinueAsGuest?: () => void;
   initialMode?: 'login' | 'register';
   contextMessage?: string;
   isModal?: boolean;
-}
-
-const ACCOUNTS_STORAGE_KEY = 'reciclaoq_accounts_v1';
-let memoryAccountsFallback: StoredAccount[] = [];
-
-function loadAccounts(): StoredAccount[] {
-  try {
-    const raw = window.localStorage.getItem(ACCOUNTS_STORAGE_KEY);
-    if (!raw) return memoryAccountsFallback;
-    const parsed = JSON.parse(raw) as StoredAccount[];
-    memoryAccountsFallback = parsed;
-    return parsed;
-  } catch {
-    return memoryAccountsFallback;
-  }
-}
-
-function saveAccounts(accounts: StoredAccount[]) {
-  memoryAccountsFallback = accounts;
-  try {
-    window.localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts));
-  } catch {
-    // Fallback remains active in memory when iframe storage is restricted
-  }
-}
-
-function buildInitials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return 'RQ';
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({
@@ -91,64 +56,51 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     event.preventDefault();
     setErrorMsg('');
     setInfoMsg('');
+
+    if (!isSupabaseConfigured) {
+      setErrorMsg(
+        supabaseConfigMessage ||
+          'Supabase não está configurado. Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.',
+      );
+      return;
+    }
+
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes('@')) {
       setErrorMsg('Informe um e-mail válido para entrar.');
       return;
     }
-    if (password.trim().length < (isSupabaseConfigured ? 6 : 4)) {
-      setErrorMsg(
-        isSupabaseConfigured
-          ? 'Digite sua senha (mínimo de 6 caracteres).'
-          : 'Digite sua senha (mínimo de 4 caracteres).',
-      );
+    if (password.trim().length < 6) {
+      setErrorMsg('Digite sua senha (mínimo de 6 caracteres).');
       return;
     }
 
-    if (isSupabaseConfigured) {
-      setIsSubmitting(true);
-      try {
-        const {user, error} = await signInSupabase(cleanEmail, password);
-        if (error || !user) {
-          setErrorMsg(error || 'Não foi possível entrar.');
-          return;
-        }
-        onLogin({...user, isRealUser: true});
-      } finally {
-        setIsSubmitting(false);
+    setIsSubmitting(true);
+    try {
+      const {user, error} = await signInSupabase(cleanEmail, password);
+      if (error || !user) {
+        setErrorMsg(error || 'Não foi possível entrar.');
+        return;
       }
-      return;
+      onLogin({...user, isRealUser: true});
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const accounts = loadAccounts();
-    const existing = accounts.find((acc) => acc.email === cleanEmail);
-
-    if (!existing) {
-      setErrorMsg(
-        'Conta não encontrada. Clique em "Criar conta" acima para cadastrar seu e-mail e senha.',
-      );
-      return;
-    }
-
-    if (existing.password !== password) {
-      setErrorMsg('Senha incorreta para este e-mail.');
-      return;
-    }
-
-    onLogin({
-      id: existing.id || `local-${cleanEmail}`,
-      isRealUser: true,
-      name: existing.name,
-      email: existing.email,
-      neighborhood: existing.neighborhood,
-      initials: existing.initials,
-    });
   };
 
   const handleRegisterSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setErrorMsg('');
     setInfoMsg('');
+
+    if (!isSupabaseConfigured) {
+      setErrorMsg(
+        supabaseConfigMessage ||
+          'Supabase não está configurado. Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.',
+      );
+      return;
+    }
+
     const cleanName = name.trim();
     const cleanNeighborhood = neighborhood.trim() || 'Comunidade Local';
     const cleanEmail = email.trim().toLowerCase();
@@ -161,70 +113,37 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       setErrorMsg('Informe um e-mail válido.');
       return;
     }
-    if (password.trim().length < (isSupabaseConfigured ? 6 : 4)) {
-      setErrorMsg(
-        isSupabaseConfigured
-          ? 'Crie uma senha com pelo menos 6 caracteres.'
-          : 'Crie uma senha com pelo menos 4 caracteres.',
-      );
+    if (password.trim().length < 6) {
+      setErrorMsg('Crie uma senha com pelo menos 6 caracteres.');
       return;
     }
 
-    if (isSupabaseConfigured) {
-      setIsSubmitting(true);
-      try {
-        const result = await signUpSupabase({
-          name: cleanName,
-          email: cleanEmail,
-          password,
-          neighborhood: cleanNeighborhood,
-        });
+    setIsSubmitting(true);
+    try {
+      const result = await signUpSupabase({
+        name: cleanName,
+        email: cleanEmail,
+        password,
+        neighborhood: cleanNeighborhood,
+      });
 
-        if (result.error) {
-          setErrorMsg(result.error);
-          return;
-        }
-        if (result.needsConfirmation) {
-          setMode('login');
-          setInfoMsg(
-            'Cadastro criado! Confirme o link enviado para o seu e-mail e depois faça login (ou desative "Confirm email" no painel do Supabase).',
-          );
-          return;
-        }
-        if (result.user) {
-          onLogin({...result.user, isRealUser: true});
-        }
-      } finally {
-        setIsSubmitting(false);
+      if (result.error) {
+        setErrorMsg(result.error);
+        return;
       }
-      return;
+      if (result.needsConfirmation) {
+        setMode('login');
+        setInfoMsg(
+          'Cadastro criado no Supabase! Confirme o link enviado para o seu e-mail e depois faça login (ou desative "Confirm email" no painel do Supabase).',
+        );
+        return;
+      }
+      if (result.user) {
+        onLogin({...result.user, isRealUser: true});
+      }
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const accounts = loadAccounts();
-    if (accounts.some((acc) => acc.email === cleanEmail)) {
-      setErrorMsg('Este e-mail já está cadastrado. Use a aba "Entrar".');
-      return;
-    }
-
-    const newAccount: StoredAccount = {
-      id: `local-${cleanEmail}`,
-      isRealUser: true,
-      name: cleanName,
-      email: cleanEmail,
-      neighborhood: cleanNeighborhood,
-      initials: buildInitials(cleanName),
-      password,
-    };
-
-    saveAccounts([...accounts, newAccount]);
-    onLogin({
-      id: newAccount.id,
-      isRealUser: true,
-      name: newAccount.name,
-      email: newAccount.email,
-      neighborhood: newAccount.neighborhood,
-      initials: newAccount.initials,
-    });
   };
 
   const authCard = (
@@ -429,7 +348,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               htmlFor="register-password"
               className="block text-xs font-semibold text-[#3d4a42] mb-1.5"
             >
-              Criar senha ({isSupabaseConfigured ? 'mín. 6 caracteres' : 'mín. 4 caracteres'})
+              Criar senha (mín. 6 caracteres)
             </label>
             <div className="relative">
               <input
@@ -438,9 +357,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
                 autoComplete="new-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder={
-                  isSupabaseConfigured ? 'Mínimo 6 caracteres' : 'Mínimo 4 caracteres'
-                }
+                placeholder="Mínimo 6 caracteres"
                 className="min-h-[44px] w-full rounded-full border border-[#e2e8f0] bg-[#f8fafc] pl-4 pr-12 text-sm text-[#0b1c30] focus:border-[#0ea5e9] focus:bg-white focus:outline-none"
               />
               <button

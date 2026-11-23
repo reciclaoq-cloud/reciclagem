@@ -103,6 +103,9 @@ function formatRelativeDate(iso: string): string {
 
 function translateAuthError(message: string, mode: 'login' | 'signup'): string {
   const lower = message.toLowerCase();
+  if (lower.includes('invalid path') || lower.includes('request url')) {
+    return 'URL do Supabase inválida (VITE_SUPABASE_URL deve conter apenas https://SEU-PROJETO.supabase.co, sem /rest/v1, /auth/v1 ou /dashboard).';
+  }
   if (lower.includes('email not confirmed')) {
     return 'E-mail ainda não confirmado. Confira sua caixa de entrada ou desative "Confirm email" no Supabase (Authentication → Providers → Email).';
   }
@@ -263,18 +266,26 @@ export async function signOutSupabase(): Promise<void> {
   }
 }
 
-export async function updateSupabaseProfile(user: RepoUser): Promise<void> {
-  if (!supabase || !user.id || user.id.startsWith('local-')) return;
+export async function updateSupabaseProfile(
+  user: RepoUser,
+): Promise<{ok: boolean; error?: string}> {
+  if (!supabase || !user.id) {
+    return {ok: false, error: 'Sessão Supabase indisponível.'};
+  }
   try {
-    await supabase.from('profiles').upsert({
+    const {error} = await supabase.from('profiles').upsert({
       id: user.id,
       name: user.name,
       email: user.email,
       neighborhood: user.neighborhood,
       initials: user.initials,
     });
-  } catch {
-    // Keep client state resilient
+    return error ? {ok: false, error: error.message} : {ok: true};
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erro ao atualizar perfil.',
+    };
   }
 }
 
@@ -342,26 +353,34 @@ export async function fetchSupabasePosts(): Promise<EcoPost[] | null> {
 export async function deleteSupabasePost(
   postId: string,
   userId?: string,
-): Promise<void> {
-  if (!supabase || !userId || userId.startsWith('local-')) return;
+): Promise<{ok: boolean; error?: string}> {
+  if (!supabase || !userId) {
+    return {ok: false, error: 'Faça login no Supabase para excluir.'};
+  }
   try {
-    await supabase
+    const {error} = await supabase
       .from('eco_posts')
       .delete()
       .eq('id', postId)
       .eq('user_id', userId);
-  } catch {
-    // Keep client state resilient
+    return error ? {ok: false, error: error.message} : {ok: true};
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erro ao excluir publicação.',
+    };
   }
 }
 
 export async function insertSupabasePost(
   post: EcoPost,
   userId?: string,
-): Promise<void> {
-  if (!supabase || !userId || userId.startsWith('local-')) return;
+): Promise<{ok: boolean; error?: string}> {
+  if (!supabase || !userId) {
+    return {ok: false, error: 'Faça login no Supabase para publicar.'};
+  }
   try {
-    await supabase.from('eco_posts').insert({
+    const {error} = await supabase.from('eco_posts').insert({
       id: post.id,
       user_id: userId,
       author_name: post.authorName,
@@ -383,8 +402,12 @@ export async function insertSupabasePost(
       likes: post.likes,
       verified_count: post.verifiedCount,
     });
-  } catch {
-    // Keep client state resilient
+    return error ? {ok: false, error: error.message} : {ok: true};
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erro ao salvar publicação.',
+    };
   }
 }
 
@@ -392,15 +415,19 @@ export async function updateSupabasePostCounters(
   postId: string,
   likes: number,
   verifiedCount: number,
-): Promise<void> {
-  if (!supabase) return;
+): Promise<{ok: boolean; error?: string}> {
+  if (!supabase) return {ok: false, error: 'Supabase não configurado.'};
   try {
-    await supabase
+    const {error} = await supabase
       .from('eco_posts')
       .update({likes, verified_count: verifiedCount})
       .eq('id', postId);
-  } catch {
-    // Keep client state resilient
+    return error ? {ok: false, error: error.message} : {ok: true};
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erro ao atualizar contadores.',
+    };
   }
 }
 
@@ -408,10 +435,12 @@ export async function insertSupabaseComment(
   postId: string,
   comment: EcoComment,
   userId?: string,
-): Promise<void> {
-  if (!supabase || !userId || userId.startsWith('local-')) return;
+): Promise<{ok: boolean; error?: string}> {
+  if (!supabase || !userId) {
+    return {ok: false, error: 'Faça login no Supabase para comentar.'};
+  }
   try {
-    await supabase.from('eco_comments').insert({
+    const {error} = await supabase.from('eco_comments').insert({
       id: comment.id,
       post_id: postId,
       user_id: userId,
@@ -420,8 +449,12 @@ export async function insertSupabaseComment(
       author_role: comment.authorRole,
       content: comment.content,
     });
-  } catch {
-    // Keep client state resilient
+    return error ? {ok: false, error: error.message} : {ok: true};
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erro ao salvar comentário.',
+    };
   }
 }
 
@@ -454,10 +487,12 @@ export async function fetchSupabaseCategoryPhotos(): Promise<
 export async function insertSupabaseCategoryPhoto(
   photo: CategoryPhotoEntry,
   userId?: string,
-): Promise<void> {
-  if (!supabase || !userId || userId.startsWith('local-')) return;
+): Promise<{ok: boolean; error?: string}> {
+  if (!supabase || !userId) {
+    return {ok: false, error: 'Faça login no Supabase para enviar fotos.'};
+  }
   try {
-    await supabase.from('category_photos').insert({
+    const {error} = await supabase.from('category_photos').insert({
       id: photo.id,
       user_id: userId,
       author_name: photo.authorName,
@@ -467,24 +502,34 @@ export async function insertSupabaseCategoryPhoto(
       title: photo.title,
       image_url: photo.imageUrl,
     });
-  } catch {
-    // Keep client state resilient
+    return error ? {ok: false, error: error.message} : {ok: true};
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erro ao enviar foto.',
+    };
   }
 }
 
 export async function deleteSupabaseCategoryPhoto(
   photoId: string,
   userId?: string,
-): Promise<void> {
-  if (!supabase || !userId || userId.startsWith('local-')) return;
+): Promise<{ok: boolean; error?: string}> {
+  if (!supabase || !userId) {
+    return {ok: false, error: 'Faça login no Supabase para excluir.'};
+  }
   try {
-    await supabase
+    const {error} = await supabase
       .from('category_photos')
       .delete()
       .eq('id', photoId)
       .eq('user_id', userId);
-  } catch {
-    // Keep client state resilient
+    return error ? {ok: false, error: error.message} : {ok: true};
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erro ao excluir foto.',
+    };
   }
 }
 
@@ -521,10 +566,15 @@ export async function fetchSupabaseBeforeAfter(): Promise<
 export async function insertSupabaseBeforeAfter(
   entry: BeforeAfterEntry,
   userId?: string,
-): Promise<void> {
-  if (!supabase || !userId || userId.startsWith('local-')) return;
+): Promise<{ok: boolean; error?: string}> {
+  if (!supabase || !userId) {
+    return {
+      ok: false,
+      error: 'Faça login no Supabase para registrar Antes e Depois.',
+    };
+  }
   try {
-    await supabase.from('before_after_entries').insert({
+    const {error} = await supabase.from('before_after_entries').insert({
       id: entry.id,
       user_id: userId,
       author_name: entry.authorName,
@@ -538,24 +588,35 @@ export async function insertSupabaseBeforeAfter(
       before_image_url: entry.beforeImageUrl,
       after_image_url: entry.afterImageUrl,
     });
-  } catch {
-    // Keep client state resilient
+    return error ? {ok: false, error: error.message} : {ok: true};
+  } catch (err) {
+    return {
+      ok: false,
+      error:
+        err instanceof Error ? err.message : 'Erro ao salvar Antes e Depois.',
+    };
   }
 }
 
 export async function deleteSupabaseBeforeAfter(
   entryId: string,
   userId?: string,
-): Promise<void> {
-  if (!supabase || !userId || userId.startsWith('local-')) return;
+): Promise<{ok: boolean; error?: string}> {
+  if (!supabase || !userId) {
+    return {ok: false, error: 'Faça login no Supabase para excluir.'};
+  }
   try {
-    await supabase
+    const {error} = await supabase
       .from('before_after_entries')
       .delete()
       .eq('id', entryId)
       .eq('user_id', userId);
-  } catch {
-    // Keep client state resilient
+    return error ? {ok: false, error: error.message} : {ok: true};
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erro ao excluir registro.',
+    };
   }
 }
 
@@ -563,7 +624,7 @@ export async function fetchSupabaseHabits(
   userId: string | undefined,
   baseHabits: HabitItem[],
 ): Promise<HabitItem[] | null> {
-  if (!supabase || !userId || userId.startsWith('local-')) return null;
+  if (!supabase || !userId) return null;
   try {
     const {data, error} = await supabase
       .from('user_habits')
@@ -588,17 +649,21 @@ export async function upsertSupabaseHabit(
   userId: string | undefined,
   habitId: string,
   completed: boolean,
-): Promise<void> {
-  if (!supabase || !userId || userId.startsWith('local-')) return;
+): Promise<{ok: boolean; error?: string}> {
+  if (!supabase || !userId) return {ok: false};
   try {
-    await supabase.from('user_habits').upsert({
+    const {error} = await supabase.from('user_habits').upsert({
       user_id: userId,
       habit_id: habitId,
       completed,
       updated_at: new Date().toISOString(),
     });
-  } catch {
-    // Keep client state resilient
+    return error ? {ok: false, error: error.message} : {ok: true};
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erro ao salvar hábito.',
+    };
   }
 }
 
@@ -612,7 +677,7 @@ export interface UserPostInteraction {
 export async function fetchSupabasePostInteractions(
   userId: string | undefined,
 ): Promise<Map<string, UserPostInteraction> | null> {
-  if (!supabase || !userId || userId.startsWith('local-')) return null;
+  if (!supabase || !userId) return null;
   try {
     const {data, error} = await supabase
       .from('user_post_interactions')
@@ -638,10 +703,10 @@ export async function fetchSupabasePostInteractions(
 export async function upsertSupabasePostInteraction(
   userId: string | undefined,
   interaction: UserPostInteraction,
-): Promise<void> {
-  if (!supabase || !userId || userId.startsWith('local-')) return;
+): Promise<{ok: boolean; error?: string}> {
+  if (!supabase || !userId) return {ok: false};
   try {
-    await supabase.from('user_post_interactions').upsert({
+    const {error} = await supabase.from('user_post_interactions').upsert({
       user_id: userId,
       post_id: interaction.postId,
       liked: interaction.liked,
@@ -649,8 +714,12 @@ export async function upsertSupabasePostInteraction(
       saved: interaction.saved,
       updated_at: new Date().toISOString(),
     });
-  } catch {
-    // Keep client state resilient
+    return error ? {ok: false, error: error.message} : {ok: true};
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erro ao salvar interação.',
+    };
   }
 }
 
@@ -658,7 +727,7 @@ export async function fetchSupabaseChallenges(
   userId: string | undefined,
   baseChallenges: DailyChallenge[],
 ): Promise<DailyChallenge[] | null> {
-  if (!supabase || !userId || userId.startsWith('local-')) return null;
+  if (!supabase || !userId) return null;
   try {
     const {data, error} = await supabase
       .from('user_challenge_progress')
@@ -695,17 +764,21 @@ export async function upsertSupabaseChallengeProgress(
   challengeId: string,
   joined: boolean,
   completedSteps: number[],
-): Promise<void> {
-  if (!supabase || !userId || userId.startsWith('local-')) return;
+): Promise<{ok: boolean; error?: string}> {
+  if (!supabase || !userId) return {ok: false};
   try {
-    await supabase.from('user_challenge_progress').upsert({
+    const {error} = await supabase.from('user_challenge_progress').upsert({
       user_id: userId,
       challenge_id: challengeId,
       joined,
       completed_steps: completedSteps,
       updated_at: new Date().toISOString(),
     });
-  } catch {
-    // Keep client state resilient
+    return error ? {ok: false, error: error.message} : {ok: true};
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : 'Erro ao salvar desafio.',
+    };
   }
 }

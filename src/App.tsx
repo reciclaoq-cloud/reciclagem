@@ -40,7 +40,7 @@ import {ProfileModal} from './components/ProfileModal';
 import {CreativeCategoriesStrip} from './components/CreativeCategoriesStrip';
 import {CategoryPhotoUploadModal} from './components/CategoryPhotoUploadModal';
 import {BeforeAfterModal} from './components/BeforeAfterModal';
-import {isSupabaseConfigured} from './lib/supabase';
+import {isSupabaseConfigured, supabaseConfigMessage} from './lib/supabase';
 import {
   deleteSupabaseBeforeAfter,
   deleteSupabaseCategoryPhoto,
@@ -63,44 +63,25 @@ import {
   upsertSupabasePostInteraction,
 } from './services/ecoRepository';
 
-const STORAGE_KEYS = {
-  POSTS: 'reciclaoq_posts_v1',
-  HABITS: 'reciclaoq_habits_v1',
-  CHALLENGES: 'reciclaoq_challenges_v1',
-  CATEGORY_PHOTOS: 'reciclaoq_category_photos_v1',
-  BEFORE_AFTER: 'reciclaoq_before_after_v1',
-};
-
-function loadStored<T>(key: string, fallback: T): T {
-  try {
-    const raw = window.localStorage.getItem(key);
-    if (!raw) return fallback;
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
-  const [posts, setPosts] = useState<EcoPost[]>(() => {
-    const stored = loadStored<EcoPost[]>(STORAGE_KEYS.POSTS, INITIAL_POSTS);
-    const hasReal = stored.some((p) => p.isRealUserPost || Boolean(p.userId));
-    return hasReal
-      ? stored.filter((p) => p.isRealUserPost || Boolean(p.userId))
-      : stored;
-  });
+  const [posts, setPosts] = useState<EcoPost[]>(() =>
+    isSupabaseConfigured ? [] : INITIAL_POSTS,
+  );
   const [categoryPhotos, setCategoryPhotos] = useState<CategoryPhotoEntry[]>(
-    () => loadStored<CategoryPhotoEntry[]>(STORAGE_KEYS.CATEGORY_PHOTOS, []),
+    [],
   );
   const [beforeAfterEntries, setBeforeAfterEntries] = useState<
     BeforeAfterEntry[]
-  >(() => loadStored<BeforeAfterEntry[]>(STORAGE_KEYS.BEFORE_AFTER, []));
-  const [habits, setHabits] = useState<HabitItem[]>(() =>
-    loadStored<HabitItem[]>(STORAGE_KEYS.HABITS, INITIAL_HABITS),
+  >([]);
+  const [habits, setHabits] = useState<HabitItem[]>(INITIAL_HABITS);
+  const [challenges, setChallenges] =
+    useState<DailyChallenge[]>(INITIAL_CHALLENGES);
+  const [isLoadingData, setIsLoadingData] = useState<boolean>(
+    isSupabaseConfigured,
   );
-  const [challenges, setChallenges] = useState<DailyChallenge[]>(() =>
-    loadStored<DailyChallenge[]>(STORAGE_KEYS.CHALLENGES, INITIAL_CHALLENGES),
+  const [syncError, setSyncError] = useState<string | null>(
+    supabaseConfigMessage,
   );
 
   const [activeSection, setActiveSection] = useState<NavSection>('feed');
@@ -155,57 +136,12 @@ export default function App() {
   >(null);
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEYS.POSTS, JSON.stringify(posts));
-    } catch {
-      // Ignore storage quota errors
+    if (!isSupabaseConfigured) {
+      setIsLoadingData(false);
+      return;
     }
-  }, [posts]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        STORAGE_KEYS.CATEGORY_PHOTOS,
-        JSON.stringify(categoryPhotos),
-      );
-    } catch {
-      // Ignore storage quota errors
-    }
-  }, [categoryPhotos]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        STORAGE_KEYS.BEFORE_AFTER,
-        JSON.stringify(beforeAfterEntries),
-      );
-    } catch {
-      // Ignore storage quota errors
-    }
-  }, [beforeAfterEntries]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(habits));
-    } catch {
-      // Ignore storage quota errors
-    }
-  }, [habits]);
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem(
-        STORAGE_KEYS.CHALLENGES,
-        JSON.stringify(challenges),
-      );
-    } catch {
-      // Ignore storage quota errors
-    }
-  }, [challenges]);
-
-  useEffect(() => {
-    if (!isSupabaseConfigured) return;
     let active = true;
+    setIsLoadingData(true);
 
     (async () => {
       const [
@@ -219,17 +155,34 @@ export default function App() {
         fetchSupabasePosts(),
         fetchSupabaseCategoryPhotos(),
         fetchSupabaseBeforeAfter(),
-        currentUser
+        currentUser?.id
           ? fetchSupabaseHabits(currentUser.id, INITIAL_HABITS)
           : Promise.resolve(null),
-        currentUser
+        currentUser?.id
           ? fetchSupabasePostInteractions(currentUser.id)
           : Promise.resolve(null),
-        currentUser
+        currentUser?.id
           ? fetchSupabaseChallenges(currentUser.id, INITIAL_CHALLENGES)
           : Promise.resolve(null),
       ]);
       if (!active) return;
+
+      if (
+        remotePosts === null ||
+        remoteCategoryPhotos === null ||
+        remoteBeforeAfter === null
+      ) {
+        setSyncError(
+          'Não foi possível ler os dados no Supabase. Verifique se o SQL de supabase/schema.sql foi executado e se VITE_SUPABASE_URL é apenas https://seu-projeto.supabase.co.',
+        );
+      } else {
+        setSyncError(null);
+      }
+
+      const safePhotos = remoteCategoryPhotos || [];
+      const safeBeforeAfter = remoteBeforeAfter || [];
+      setCategoryPhotos(safePhotos);
+      setBeforeAfterEntries(safeBeforeAfter);
 
       if (remotePosts && remotePosts.length > 0) {
         const hasRemoteReal = remotePosts.some(
@@ -250,33 +203,23 @@ export default function App() {
             : post;
         });
         setPosts(merged);
-      } else if (remoteInteractions && remoteInteractions.size > 0) {
-        setPosts((prev) =>
-          prev.map((post) => {
-            const interaction = remoteInteractions.get(post.id);
-            return interaction
-              ? {
-                  ...post,
-                  likedByMe: interaction.liked,
-                  verifiedByMe: interaction.verified,
-                  savedByMe: interaction.saved,
-                }
-              : post;
-          }),
-        );
+      } else if (safePhotos.length === 0 && safeBeforeAfter.length === 0) {
+        setPosts(INITIAL_POSTS);
+      } else {
+        setPosts([]);
       }
-      if (remoteCategoryPhotos) {
-        setCategoryPhotos(remoteCategoryPhotos);
-      }
-      if (remoteBeforeAfter) {
-        setBeforeAfterEntries(remoteBeforeAfter);
-      }
+
       if (remoteHabits) {
         setHabits(remoteHabits);
+      } else if (!currentUser) {
+        setHabits(INITIAL_HABITS);
       }
       if (remoteChallenges) {
         setChallenges(remoteChallenges);
+      } else if (!currentUser) {
+        setChallenges(INITIAL_CHALLENGES);
       }
+      setIsLoadingData(false);
     })();
 
     return () => {
@@ -332,19 +275,31 @@ export default function App() {
     window.scrollTo({top: 0, behavior: 'smooth'});
   };
 
+  const isSeedPost = (postId: string) =>
+    INITIAL_POSTS.some((seed) => seed.id === postId);
+
   const handleToggleLike = (postId: string) => {
+    if (!currentUser) {
+      openAuthModal(
+        'login',
+        'Entre ou crie sua conta no Supabase para apoiar publicações.',
+      );
+      return;
+    }
     setPosts((prev) =>
       prev.map((post) => {
         if (post.id !== postId) return post;
         const liked = !post.likedByMe;
         const nextLikes = Math.max(0, post.likes + (liked ? 1 : -1));
-        void updateSupabasePostCounters(postId, nextLikes, post.verifiedCount);
-        void upsertSupabasePostInteraction(currentUser?.id, {
-          postId,
-          liked,
-          verified: Boolean(post.verifiedByMe),
-          saved: Boolean(post.savedByMe),
-        });
+        if (!isSeedPost(postId)) {
+          void updateSupabasePostCounters(postId, nextLikes, post.verifiedCount);
+          void upsertSupabasePostInteraction(currentUser.id, {
+            postId,
+            liked,
+            verified: Boolean(post.verifiedByMe),
+            saved: Boolean(post.savedByMe),
+          });
+        }
         return {
           ...post,
           likedByMe: liked,
@@ -355,6 +310,13 @@ export default function App() {
   };
 
   const handleToggleVerify = (postId: string) => {
+    if (!currentUser) {
+      openAuthModal(
+        'login',
+        'Entre ou crie sua conta no Supabase para marcar dicas como testadas.',
+      );
+      return;
+    }
     setPosts((prev) =>
       prev.map((post) => {
         if (post.id !== postId) return post;
@@ -363,13 +325,15 @@ export default function App() {
           0,
           post.verifiedCount + (verified ? 1 : -1),
         );
-        void updateSupabasePostCounters(postId, post.likes, nextVerified);
-        void upsertSupabasePostInteraction(currentUser?.id, {
-          postId,
-          liked: Boolean(post.likedByMe),
-          verified,
-          saved: Boolean(post.savedByMe),
-        });
+        if (!isSeedPost(postId)) {
+          void updateSupabasePostCounters(postId, post.likes, nextVerified);
+          void upsertSupabasePostInteraction(currentUser.id, {
+            postId,
+            liked: Boolean(post.likedByMe),
+            verified,
+            saved: Boolean(post.savedByMe),
+          });
+        }
         return {
           ...post,
           verifiedByMe: verified,
@@ -380,22 +344,31 @@ export default function App() {
   };
 
   const handleToggleSave = (postId: string) => {
+    if (!currentUser) {
+      openAuthModal(
+        'login',
+        'Entre ou crie sua conta no Supabase para salvar publicações no seu perfil.',
+      );
+      return;
+    }
     setPosts((prev) =>
       prev.map((post) => {
         if (post.id !== postId) return post;
         const saved = !post.savedByMe;
-        void upsertSupabasePostInteraction(currentUser?.id, {
-          postId,
-          liked: Boolean(post.likedByMe),
-          verified: Boolean(post.verifiedByMe),
-          saved,
-        });
+        if (!isSeedPost(postId)) {
+          void upsertSupabasePostInteraction(currentUser.id, {
+            postId,
+            liked: Boolean(post.likedByMe),
+            verified: Boolean(post.verifiedByMe),
+            saved,
+          });
+        }
         return {...post, savedByMe: saved};
       }),
     );
   };
 
-  const handleAddComment = (postId: string, content: string) => {
+  const handleAddComment = async (postId: string, content: string) => {
     if (!currentUser) {
       openAuthModal(
         'login',
@@ -411,7 +384,15 @@ export default function App() {
       createdAt: 'Agora',
       content,
     };
-    void insertSupabaseComment(postId, newComment, currentUser.id);
+    if (!isSeedPost(postId)) {
+      const res = await insertSupabaseComment(postId, newComment, currentUser.id);
+      if (!res.ok) {
+        setSyncError(
+          `Não foi possível salvar o comentário no Supabase: ${res.error || 'erro desconhecido'}`,
+        );
+        return;
+      }
+    }
 
     setPosts((prev) =>
       prev.map((post) => {
@@ -425,13 +406,28 @@ export default function App() {
   };
 
   // Enforce: after the first real post with login & password, remove invented seed users
-  const handlePublishPost = (newPost: EcoPost) => {
+  const handlePublishPost = async (newPost: EcoPost) => {
+    if (!currentUser?.id) {
+      openAuthModal(
+        'login',
+        'Entre com sua conta do Supabase para publicar na comunidade.',
+        {type: 'composer'},
+      );
+      return;
+    }
     const postWithOwner: EcoPost = {
       ...newPost,
-      userId: currentUser?.id,
+      userId: currentUser.id,
       isRealUserPost: true,
     };
-    void insertSupabasePost(postWithOwner, currentUser?.id);
+    const res = await insertSupabasePost(postWithOwner, currentUser.id);
+    if (!res.ok) {
+      setSyncError(
+        `Erro ao salvar publicação no Supabase: ${res.error || 'verifique suas políticas RLS e schema.'}`,
+      );
+      return;
+    }
+    setSyncError(null);
     setPosts((prev) => {
       const onlyRealPosts = prev.filter(
         (p) => p.isRealUserPost || Boolean(p.userId),
@@ -452,13 +448,19 @@ export default function App() {
     setSelectedMaterial(MaterialType.ALL);
   };
 
-  const handleDeletePost = (postId: string) => {
-    void deleteSupabasePost(postId, currentUser?.id);
+  const handleDeletePost = async (postId: string) => {
+    const res = await deleteSupabasePost(postId, currentUser?.id);
+    if (!res.ok) {
+      setSyncError(
+        `Erro ao excluir publicação no Supabase: ${res.error || 'tente novamente.'}`,
+      );
+      return;
+    }
     setPosts((prev) => prev.filter((p) => p.id !== postId));
     setDetailPostId(null);
   };
 
-  const handleSaveCategoryPhoto = ({
+  const handleSaveCategoryPhoto = async ({
     photo,
     beforeAfter,
   }: {
@@ -474,15 +476,26 @@ export default function App() {
       | 'createdAt'
     >;
   }) => {
+    if (!currentUser?.id) return;
     const photoWithOwner: CategoryPhotoEntry = {
       ...photo,
-      userId: currentUser?.id,
+      userId: currentUser.id,
     };
-    void insertSupabaseCategoryPhoto(photoWithOwner, currentUser?.id);
+    const photoRes = await insertSupabaseCategoryPhoto(
+      photoWithOwner,
+      currentUser.id,
+    );
+    if (!photoRes.ok) {
+      setSyncError(
+        `Erro ao salvar foto no Supabase: ${photoRes.error || 'tente novamente.'}`,
+      );
+      return;
+    }
+    setSyncError(null);
     setCategoryPhotos((prev) => [photoWithOwner, ...prev]);
     setSelectedCraft(photo.craftCategory);
 
-    if (beforeAfter && currentUser) {
+    if (beforeAfter) {
       const entry: BeforeAfterEntry = {
         id: `ba-${Date.now()}`,
         userId: currentUser.id,
@@ -493,57 +506,104 @@ export default function App() {
         ...beforeAfter,
         createdAt: 'Agora mesmo',
       };
-      void insertSupabaseBeforeAfter(entry, currentUser.id);
+      const baRes = await insertSupabaseBeforeAfter(entry, currentUser.id);
+      if (!baRes.ok) {
+        setSyncError(
+          `Foto salva, mas erro ao salvar Antes e Depois no Supabase: ${baRes.error || ''}`,
+        );
+        return;
+      }
       setBeforeAfterEntries((prev) => [entry, ...prev]);
     }
   };
 
-  const handleDeleteCategoryPhoto = (photoId: string) => {
-    void deleteSupabaseCategoryPhoto(photoId, currentUser?.id);
+  const handleDeleteCategoryPhoto = async (photoId: string) => {
+    const res = await deleteSupabaseCategoryPhoto(photoId, currentUser?.id);
+    if (!res.ok) {
+      setSyncError(
+        `Erro ao excluir foto no Supabase: ${res.error || 'tente novamente.'}`,
+      );
+      return;
+    }
     setCategoryPhotos((prev) => prev.filter((p) => p.id !== photoId));
   };
 
-  const handleAddBeforeAfter = (entry: BeforeAfterEntry) => {
+  const handleAddBeforeAfter = async (entry: BeforeAfterEntry) => {
+    if (!currentUser?.id) return;
     const withOwner: BeforeAfterEntry = {
       ...entry,
-      userId: currentUser?.id,
+      userId: currentUser.id,
     };
-    void insertSupabaseBeforeAfter(withOwner, currentUser?.id);
+    const res = await insertSupabaseBeforeAfter(withOwner, currentUser.id);
+    if (!res.ok) {
+      setSyncError(
+        `Erro ao registrar Antes e Depois no Supabase: ${res.error || 'tente novamente.'}`,
+      );
+      return;
+    }
+    setSyncError(null);
     setBeforeAfterEntries((prev) => [withOwner, ...prev]);
   };
 
-  const handleDeleteBeforeAfter = (entryId: string) => {
-    void deleteSupabaseBeforeAfter(entryId, currentUser?.id);
+  const handleDeleteBeforeAfter = async (entryId: string) => {
+    const res = await deleteSupabaseBeforeAfter(entryId, currentUser?.id);
+    if (!res.ok) {
+      setSyncError(
+        `Erro ao excluir registro no Supabase: ${res.error || 'tente novamente.'}`,
+      );
+      return;
+    }
     setBeforeAfterEntries((prev) => prev.filter((e) => e.id !== entryId));
   };
 
   const handleToggleHabit = (habitId: string) => {
+    if (!currentUser?.id) {
+      openAuthModal(
+        'login',
+        'Entre com sua conta do Supabase para salvar seus hábitos diários.',
+      );
+      return;
+    }
     setHabits((prev) =>
       prev.map((habit) => {
         if (habit.id !== habitId) return habit;
         const nextCompleted = !habit.completed;
-        void upsertSupabaseHabit(currentUser?.id, habitId, nextCompleted);
+        void upsertSupabaseHabit(currentUser.id, habitId, nextCompleted);
         return {...habit, completed: nextCompleted};
       }),
     );
   };
 
   const handleResetHabits = () => {
+    if (!currentUser?.id) {
+      openAuthModal(
+        'login',
+        'Entre com sua conta do Supabase para gerenciar seus hábitos.',
+      );
+      return;
+    }
     setHabits((prev) =>
       prev.map((habit) => {
-        void upsertSupabaseHabit(currentUser?.id, habit.id, false);
+        void upsertSupabaseHabit(currentUser.id, habit.id, false);
         return {...habit, completed: false};
       }),
     );
   };
 
   const handleToggleChallengeJoin = (challengeId: string) => {
+    if (!currentUser?.id) {
+      openAuthModal(
+        'login',
+        'Entre com sua conta do Supabase para participar dos desafios.',
+      );
+      return;
+    }
     setChallenges((prev) =>
       prev.map((ch) => {
         if (ch.id !== challengeId) return ch;
         const joining = !ch.joined;
         void upsertSupabaseChallengeProgress(
-          currentUser?.id,
+          currentUser.id,
           challengeId,
           joining,
           ch.completedSteps,
@@ -561,6 +621,13 @@ export default function App() {
     challengeId: string,
     stepIndex: number,
   ) => {
+    if (!currentUser?.id) {
+      openAuthModal(
+        'login',
+        'Entre com sua conta do Supabase para salvar seu progresso nos desafios.',
+      );
+      return;
+    }
     setChallenges((prev) =>
       prev.map((ch) => {
         if (ch.id !== challengeId) return ch;
@@ -569,7 +636,7 @@ export default function App() {
           ? ch.completedSteps.filter((s) => s !== stepIndex)
           : [...ch.completedSteps, stepIndex];
         void upsertSupabaseChallengeProgress(
-          currentUser?.id,
+          currentUser.id,
           challengeId,
           true,
           nextSteps,
@@ -587,6 +654,14 @@ export default function App() {
     setComposerPrefillMaterial(item.material);
     setComposerPrefillCategory(PostCategory.SCRAP_ART);
     setComposerPrefillCraft(undefined);
+    if (!currentUser) {
+      openAuthModal(
+        'login',
+        'Entre ou crie sua conta para publicar sua ideia com este material.',
+        {type: 'composer'},
+      );
+      return;
+    }
     setIsComposerOpen(true);
   };
 
@@ -730,6 +805,22 @@ export default function App() {
 
       {/* Main 12-column Ecological Glass Container */}
       <main className="mx-auto max-w-[1280px] px-4 md:px-6 lg:px-10 pt-6">
+        {syncError && (
+          <div
+            role="alert"
+            className="mb-5 flex items-start justify-between gap-3 rounded-2xl border border-[#f59e0b]/40 bg-[#fffbeb] px-4 py-3 text-xs font-semibold text-[#92400e]"
+          >
+            <span>{syncError}</span>
+            <button
+              type="button"
+              onClick={() => setSyncError(null)}
+              aria-label="Fechar aviso"
+              className="shrink-0 rounded-full p-1 hover:bg-[#fef3c7]"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        )}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
           {/* Left Community Navigation Pane (Desktop) */}
           <div className="hidden lg:block lg:col-span-3 sticky top-22">
@@ -989,8 +1080,14 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Feed List or Clean Empty State */}
-                {filteredPosts.length === 0 ? (
+                {/* Feed List or Loading / Clean Empty State */}
+                {isLoadingData && filteredPosts.length === 0 ? (
+                  <section className="eco-card rounded-3xl p-8 text-center">
+                    <p className="text-sm font-semibold text-[#3d4a42]">
+                      Carregando publicações do Supabase...
+                    </p>
+                  </section>
+                ) : filteredPosts.length === 0 ? (
                   <section className="eco-card rounded-3xl p-8 text-center">
                     <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#e6f7f1] text-[#006948]">
                       <Sparkles className="h-5 w-5" aria-hidden="true" />
