@@ -34,9 +34,58 @@ function parseDataUrl(
   return {mimeType: match[1], base64Data: match[2]};
 }
 
+function formatGeminiError(err: unknown): string {
+  const raw = err instanceof Error ? err.message : String(err || '');
+  if (
+    raw.includes('503') ||
+    raw.includes('UNAVAILABLE') ||
+    raw.includes('high demand')
+  ) {
+    return 'O serviço de IA está temporariamente com alta demanda. Aguarde alguns segundos e tente novamente.';
+  }
+  if (raw.includes('429') || raw.includes('RESOURCE_EXHAUSTED')) {
+    return 'Limite temporário de consultas à IA atingido. Tente novamente em instantes.';
+  }
+  if (raw.includes('API_KEY_INVALID') || raw.includes('PERMISSION_DENIED')) {
+    return 'Chave da API Gemini inválida ou sem permissão no servidor.';
+  }
+  return raw || 'Erro inesperado ao consultar a IA.';
+}
+
+async function generateContentWithRetry(
+  params: Parameters<typeof ai.models.generateContent>[0],
+  maxAttempts = 3,
+) {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await ai.models.generateContent(params);
+    } catch (err) {
+      lastError = err;
+      const msg = err instanceof Error ? err.message : String(err || '');
+      const isTransient =
+        msg.includes('503') ||
+        msg.includes('UNAVAILABLE') ||
+        msg.includes('429') ||
+        msg.includes('RESOURCE_EXHAUSTED') ||
+        msg.includes('ECONNRESET') ||
+        msg.includes('fetch failed');
+      if (!isTransient || attempt === maxAttempts) {
+        throw err;
+      }
+      await new Promise((resolve) => setTimeout(resolve, attempt * 750));
+    }
+  }
+  throw lastError;
+}
+
 async function startServer() {
   const app = express();
   app.use(express.json({limit: '12mb'}));
+
+  app.get('/api/health', (_req, res) => {
+    res.json({ok: true});
+  });
 
   app.post('/api/before-after-ai', async (req, res) => {
     try {
@@ -96,7 +145,7 @@ async function startServer() {
         .filter(Boolean)
         .join('\n');
 
-      const response = await ai.models.generateContent({
+      const response = await generateContentWithRetry({
         model: 'gemini-4-hydrogen',
         contents: {
           parts: [
@@ -219,11 +268,7 @@ async function startServer() {
         suggestions,
       });
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Erro inesperado ao consultar a IA.';
-      return res.status(500).json({error: message});
+      return res.status(500).json({error: formatGeminiError(err)});
     }
   });
 
@@ -250,7 +295,7 @@ async function startServer() {
         });
       }
 
-      const response = await ai.models.generateContent({
+      const response = await generateContentWithRetry({
         model: 'gemini-4-hydrogen',
         contents: {
           parts: [
@@ -314,13 +359,31 @@ async function startServer() {
         quickTip: parsed.quickTip || '',
       });
     } catch (err) {
-      const message =
-        err instanceof Error
-          ? err.message
-          : 'Erro ao identificar o material na foto.';
-      return res.status(500).json({error: message});
+      return res.status(500).json({error: formatGeminiError(err)});
     }
   });
+
+  app.use('/api', (_req, res) => {
+    res.status(404).json({error: 'Rota da API não encontrada.'});
+  });
+
+  app.use(
+    (
+      err: unknown,
+      req: express.Request,
+      res: express.Response,
+      next: express.NextFunction,
+    ) => {
+      if (req.path.startsWith('/api')) {
+        const message =
+          err instanceof Error
+            ? err.message
+            : 'Erro ao processar requisição na API.';
+        return res.status(400).json({error: message});
+      }
+      return next(err);
+    },
+  );
 
   if (isProduction) {
     const distDir = path.resolve(__dirname, 'dist');

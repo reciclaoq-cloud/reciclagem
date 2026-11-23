@@ -667,6 +667,82 @@ export interface BeforeAfterAiResult {
   suggestions: BeforeAfterSuggestion[];
 }
 
+async function prepareAiImageDataUrl(dataUrl: string): Promise<string> {
+  if (dataUrl.length < 320_000 || typeof document === 'undefined') {
+    return dataUrl;
+  }
+  return new Promise<string>((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const maxDim = 768;
+      let {width, height} = img;
+      if (width > maxDim || height > maxDim) {
+        if (width >= height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        resolve(dataUrl);
+        return;
+      }
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, width, height);
+      try {
+        resolve(canvas.toDataURL('image/jpeg', 0.78));
+      } catch {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
+async function safeReadJsonResponse<T>(
+  response: Response,
+  fallbackError: string,
+): Promise<T> {
+  const rawText = await response.text();
+  const trimmed = rawText.trim();
+  let parsed: (T & {error?: string}) | null = null;
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try {
+      parsed = JSON.parse(trimmed) as T & {error?: string};
+    } catch {
+      parsed = null;
+    }
+  }
+
+  if (!response.ok) {
+    if (parsed?.error) {
+      throw new Error(parsed.error);
+    }
+    if (trimmed.toLowerCase().includes('page could not be found')) {
+      throw new Error(
+        'O servidor de IA não está acessível neste endereço no momento. Recarregue a página ou tente no ambiente principal do aplicativo.',
+      );
+    }
+    throw new Error(fallbackError);
+  }
+
+  if (!parsed) {
+    throw new Error(
+      'Resposta inválida do servidor de IA. Tente novamente em alguns segundos.',
+    );
+  }
+
+  return parsed;
+}
+
 export async function analyzeBeforeAfterWithAI(params: {
   imageDataUrl: string;
   material: string;
@@ -674,19 +750,16 @@ export async function analyzeBeforeAfterWithAI(params: {
   title?: string;
   description?: string;
 }): Promise<BeforeAfterAiResult> {
+  const compactImageUrl = await prepareAiImageDataUrl(params.imageDataUrl);
   const response = await fetch('/api/before-after-ai', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify(params),
+    body: JSON.stringify({...params, imageDataUrl: compactImageUrl}),
   });
-  const payload = (await response.json()) as Partial<BeforeAfterAiResult> & {
-    error?: string;
-  };
-  if (!response.ok) {
-    throw new Error(
-      payload.error || 'Não foi possível gerar sugestões com a IA.',
-    );
-  }
+  const payload = await safeReadJsonResponse<Partial<BeforeAfterAiResult>>(
+    response,
+    'Não foi possível gerar sugestões com a IA.',
+  );
   return {
     suggestedTitle: payload.suggestedTitle || '',
     identifiedMaterial: payload.identifiedMaterial || params.material,
@@ -705,19 +778,16 @@ export interface TriageAiResult {
 export async function analyzeTriageWithAI(
   imageDataUrl: string,
 ): Promise<TriageAiResult> {
+  const compactImageUrl = await prepareAiImageDataUrl(imageDataUrl);
   const response = await fetch('/api/triage-ai', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({imageDataUrl}),
+    body: JSON.stringify({imageDataUrl: compactImageUrl}),
   });
-  const payload = (await response.json()) as Partial<TriageAiResult> & {
-    error?: string;
-  };
-  if (!response.ok) {
-    throw new Error(
-      payload.error || 'Não foi possível identificar o material com a IA.',
-    );
-  }
+  const payload = await safeReadJsonResponse<Partial<TriageAiResult>>(
+    response,
+    'Não foi possível identificar o material com a IA.',
+  );
   return {
     catalogId: payload.catalogId || 'tr-pet',
     detectedLabel: payload.detectedLabel || 'Material identificado',
