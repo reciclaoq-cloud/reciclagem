@@ -1147,7 +1147,7 @@ export default function App() {
             )}
           </div>
 
-          {/* Right Personal Impact & Collection Points Pane */}
+          {/* Right Personal Impact & Daily Habits Pane */}
           <div className="lg:col-span-3 lg:sticky lg:top-22">
             <RightSidebar
               currentUser={currentUser}
@@ -1157,11 +1157,6 @@ export default function App() {
               habits={habits}
               onToggleHabit={handleToggleHabit}
               onResetHabits={handleResetHabits}
-              dropOffPoints={DROP_OFF_POINTS}
-              selectedMaterial={selectedMaterial}
-              onOpenDropOffMap={(mat, pointId) =>
-                openDropOffMap(mat || MaterialType.ALL, pointId)
-              }
               bonusPoints={bonusPoints}
               bonusKg={bonusKg}
             />

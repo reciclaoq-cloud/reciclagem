@@ -29,6 +29,12 @@ interface LoginScreenProps {
   isModal?: boolean;
 }
 
+const BRAZIL_STATES = [
+  'AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO',
+  'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI',
+  'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO',
+] as const;
+
 export const LoginScreen: React.FC<LoginScreenProps> = ({
   onLogin,
   onContinueAsGuest,
@@ -40,7 +46,8 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
-  const [neighborhood, setNeighborhood] = useState('');
+  const [city, setCity] = useState('');
+  const [stateUf, setStateUf] = useState('SP');
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [infoMsg, setInfoMsg] = useState('');
@@ -102,11 +109,23 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     }
 
     const cleanName = name.trim();
-    const cleanNeighborhood = neighborhood.trim() || 'Comunidade Local';
+    const cleanCity = city.trim();
+    const cleanState = stateUf.trim().toUpperCase();
+    const cleanLocation = cleanCity
+      ? `${cleanCity}${cleanState ? `, ${cleanState}` : ''}`
+      : cleanState || 'Comunidade Local';
     const cleanEmail = email.trim().toLowerCase();
 
     if (cleanName.length < 2) {
       setErrorMsg('Informe seu nome para criar o perfil.');
+      return;
+    }
+    if (cleanCity.length < 2) {
+      setErrorMsg('Informe sua cidade.');
+      return;
+    }
+    if (!cleanState) {
+      setErrorMsg('Selecione seu estado.');
       return;
     }
     if (!cleanEmail || !cleanEmail.includes('@')) {
@@ -124,7 +143,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         name: cleanName,
         email: cleanEmail,
         password,
-        neighborhood: cleanNeighborhood,
+        neighborhood: cleanLocation,
       });
 
       if (result.error) {
@@ -290,38 +309,59 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
         </form>
       ) : (
         <form onSubmit={handleRegisterSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
+          <div>
+            <label
+              htmlFor="register-name"
+              className="block text-xs font-semibold text-[#3d4a42] mb-1.5"
+            >
+              Nome
+            </label>
+            <input
+              id="register-name"
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Seu nome"
+              className="min-h-[44px] w-full rounded-full border border-[#e2e8f0] bg-[#f8fafc] px-4 text-sm text-[#0b1c30] focus:border-[#0ea5e9] focus:bg-white focus:outline-none"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
               <label
-                htmlFor="register-name"
+                htmlFor="register-city"
                 className="block text-xs font-semibold text-[#3d4a42] mb-1.5"
               >
-                Nome
+                Cidade
               </label>
               <input
-                id="register-name"
+                id="register-city"
                 type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Seu nome"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="Ex.: São Paulo"
                 className="min-h-[44px] w-full rounded-full border border-[#e2e8f0] bg-[#f8fafc] px-4 text-sm text-[#0b1c30] focus:border-[#0ea5e9] focus:bg-white focus:outline-none"
               />
             </div>
             <div>
               <label
-                htmlFor="register-neighborhood"
+                htmlFor="register-state"
                 className="block text-xs font-semibold text-[#3d4a42] mb-1.5"
               >
-                Bairro / Cidade
+                Estado
               </label>
-              <input
-                id="register-neighborhood"
-                type="text"
-                value={neighborhood}
-                onChange={(e) => setNeighborhood(e.target.value)}
-                placeholder="Ex.: Pinheiros, SP"
-                className="min-h-[44px] w-full rounded-full border border-[#e2e8f0] bg-[#f8fafc] px-4 text-sm text-[#0b1c30] focus:border-[#0ea5e9] focus:bg-white focus:outline-none"
-              />
+              <select
+                id="register-state"
+                value={stateUf}
+                onChange={(e) => setStateUf(e.target.value)}
+                className="min-h-[44px] w-full rounded-full border border-[#e2e8f0] bg-[#f8fafc] px-3.5 text-sm font-medium text-[#0b1c30] focus:border-[#0ea5e9] focus:bg-white focus:outline-none"
+              >
+                {BRAZIL_STATES.map((uf) => (
+                  <option key={uf} value={uf}>
+                    {uf}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 

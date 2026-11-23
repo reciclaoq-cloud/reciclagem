@@ -141,10 +141,10 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
             />
             <input
               type="text"
-              aria-label="Bairro ou cidade"
+              aria-label="Cidade e Estado"
               value={neighborhood}
               onChange={(e) => setNeighborhood(e.target.value)}
-              placeholder="Bairro / Cidade"
+              placeholder="Cidade, Estado (ex.: Curitiba, PR)"
               className="min-h-[42px] rounded-full border border-[#e2e8f0] bg-[#f8fafc] px-4 text-sm text-[#0b1c30] focus:border-[#0ea5e9] focus:bg-white focus:outline-none"
             />
           </div>

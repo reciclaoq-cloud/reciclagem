@@ -311,7 +311,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 htmlFor="post-author"
                 className="block text-xs font-semibold text-[#3d4a42] mb-1.5"
               >
-                Seu nome e bairro
+                Seu nome e cidade/estado
               </label>
               <div className="grid grid-cols-2 gap-2">
                 <input
@@ -324,10 +324,10 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 />
                 <input
                   type="text"
-                  aria-label="Bairro"
+                  aria-label="Cidade e Estado"
                   value={neighborhood}
                   onChange={(e) => setNeighborhood(e.target.value)}
-                  placeholder="Bairro"
+                  placeholder="Cidade, UF"
                   className="min-h-[42px] w-full rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] px-3 text-sm text-[#0b1c30] focus:border-[#0ea5e9] focus:bg-white focus:outline-none"
                 />
               </div>
