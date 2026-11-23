@@ -88,6 +88,14 @@ export interface CategoryPhotoEntry {
   createdAt: string;
 }
 
+export interface BeforeAfterSuggestion {
+  title: string;
+  difficulty: string;
+  estimatedTime: string;
+  summary: string;
+  steps?: string[];
+}
+
 export interface BeforeAfterEntry {
   id: string;
   userId?: string;
@@ -100,7 +108,9 @@ export interface BeforeAfterEntry {
   title: string;
   description: string;
   beforeImageUrl: string;
-  afterImageUrl: string;
+  afterImageUrl?: string;
+  steps: string[];
+  suggestions: BeforeAfterSuggestion[];
   createdAt: string;
 }
 

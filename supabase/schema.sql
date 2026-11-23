@@ -70,7 +70,7 @@ create table if not exists public.category_photos (
 -- 5. Tabela Banco de Dados "Antes e Depois"
 create table if not exists public.before_after_entries (
   id text primary key,
-  user_id uuid not null references auth.users (id) on delete cascade,
+  user_id uuid references auth.users (id) on delete set null,
   author_name text not null,
   author_handle text not null,
   author_neighborhood text not null,
@@ -80,9 +80,23 @@ create table if not exists public.before_after_entries (
   title text not null,
   description text not null default '',
   before_image_url text not null,
-  after_image_url text not null,
+  after_image_url text not null default '',
+  steps jsonb not null default '[]'::jsonb,
+  suggestions jsonb not null default '[]'::jsonb,
   created_at timestamptz not null default now()
 );
+
+alter table public.before_after_entries
+  alter column user_id drop not null;
+
+alter table public.before_after_entries
+  alter column after_image_url set default '';
+
+alter table public.before_after_entries
+  add column if not exists steps jsonb not null default '[]'::jsonb;
+
+alter table public.before_after_entries
+  add column if not exists suggestions jsonb not null default '[]'::jsonb;
 
 -- 6. Tabela de Hábitos Diários de Sustentabilidade por Usuário
 create table if not exists public.user_habits (
@@ -288,16 +302,15 @@ create policy "Registros Antes e Depois visíveis para todos"
   using (true);
 
 drop policy if exists "Usuários autenticados registram Antes e Depois" on public.before_after_entries;
-create policy "Usuários autenticados registram Antes e Depois"
+drop policy if exists "Comunidade registra Antes e Depois" on public.before_after_entries;
+create policy "Comunidade registra Antes e Depois"
   on public.before_after_entries for insert
-  to authenticated
-  with check (auth.uid() = user_id);
+  with check (user_id is null or auth.uid() = user_id);
 
 drop policy if exists "Autor pode excluir seu registro Antes e Depois" on public.before_after_entries;
 create policy "Autor pode excluir seu registro Antes e Depois"
   on public.before_after_entries for delete
-  to authenticated
-  using (auth.uid() = user_id);
+  using (user_id is null or auth.uid() = user_id);
 
 -- Políticas para user_habits
 drop policy if exists "Usuário gerencia seus próprios hábitos" on public.user_habits;

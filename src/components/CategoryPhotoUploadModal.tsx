@@ -128,6 +128,8 @@ export const CategoryPhotoUploadModal: React.FC<
               }.`,
             beforeImageUrl,
             afterImageUrl,
+            steps: [],
+            suggestions: [],
           }
         : undefined,
     });

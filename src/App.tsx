@@ -517,12 +517,11 @@ export default function App() {
   };
 
   const handleAddBeforeAfter = async (entry: BeforeAfterEntry) => {
-    if (!currentUser?.id) return;
     const withOwner: BeforeAfterEntry = {
       ...entry,
-      userId: currentUser.id,
+      userId: currentUser?.id,
     };
-    const res = await insertSupabaseBeforeAfter(withOwner, currentUser.id);
+    const res = await insertSupabaseBeforeAfter(withOwner, currentUser?.id);
     if (!res.ok) {
       setSyncError(
         `Erro ao registrar Antes e Depois no Supabase: ${res.error || 'tente novamente.'}`,
@@ -1084,7 +1083,7 @@ export default function App() {
                       Nenhuma publicação encontrada para este filtro
                     </h2>
                     <p className="mt-1 text-sm text-[#3d4a42]">
-                      Limpe a busca ou publique uma dica prática usando sua conta real.
+                      Limpe a busca ou publique uma dica prática na comunidade.
                     </p>
                     <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
                       <button
@@ -1248,14 +1247,6 @@ export default function App() {
         initialCraft={beforeAfterModalState.craft}
         entries={beforeAfterEntries}
         currentUser={currentUser}
-        onRequireAuth={() => {
-          setBeforeAfterModalState({isOpen: false});
-          openAuthModal(
-            'login',
-            'Entre ou crie sua conta para registrar fotos no banco Antes e Depois.',
-            {type: 'beforeAfter'},
-          );
-        }}
         onClose={() => setBeforeAfterModalState({isOpen: false})}
         onAddEntry={handleAddBeforeAfter}
         onDeleteEntry={handleDeleteBeforeAfter}

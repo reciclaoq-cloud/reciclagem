@@ -1,6 +1,7 @@
 import {supabase} from '../lib/supabase';
 import {
   BeforeAfterEntry,
+  BeforeAfterSuggestion,
   CategoryPhotoEntry,
   CraftSubcategory,
   DailyChallenge,
@@ -79,7 +80,9 @@ interface DbBeforeAfterRow {
   title: string;
   description: string;
   before_image_url: string;
-  after_image_url: string;
+  after_image_url: string | null;
+  steps?: string[] | null;
+  suggestions?: BeforeAfterSuggestion[] | null;
   created_at: string;
 }
 
@@ -555,7 +558,9 @@ export async function fetchSupabaseBeforeAfter(): Promise<
       title: row.title,
       description: row.description,
       beforeImageUrl: row.before_image_url,
-      afterImageUrl: row.after_image_url,
+      afterImageUrl: row.after_image_url || undefined,
+      steps: Array.isArray(row.steps) ? row.steps : [],
+      suggestions: Array.isArray(row.suggestions) ? row.suggestions : [],
       createdAt: formatRelativeDate(row.created_at),
     }));
   } catch {
@@ -567,16 +572,13 @@ export async function insertSupabaseBeforeAfter(
   entry: BeforeAfterEntry,
   userId?: string,
 ): Promise<{ok: boolean; error?: string}> {
-  if (!supabase || !userId) {
-    return {
-      ok: false,
-      error: 'Faça login no Supabase para registrar Antes e Depois.',
-    };
+  if (!supabase) {
+    return {ok: false, error: 'Banco de dados Supabase não configurado.'};
   }
   try {
-    const {error} = await supabase.from('before_after_entries').insert({
+    const basePayload = {
       id: entry.id,
-      user_id: userId,
+      user_id: userId || null,
       author_name: entry.authorName,
       author_handle: entry.authorHandle,
       author_neighborhood: entry.authorNeighborhood,
@@ -586,8 +588,27 @@ export async function insertSupabaseBeforeAfter(
       title: entry.title,
       description: entry.description,
       before_image_url: entry.beforeImageUrl,
-      after_image_url: entry.afterImageUrl,
+      after_image_url: entry.afterImageUrl || '',
+    };
+
+    const {error} = await supabase.from('before_after_entries').insert({
+      ...basePayload,
+      steps: entry.steps || [],
+      suggestions: entry.suggestions || [],
     });
+
+    if (
+      error &&
+      (error.message.includes('steps') || error.message.includes('suggestions'))
+    ) {
+      const retry = await supabase
+        .from('before_after_entries')
+        .insert(basePayload);
+      return retry.error
+        ? {ok: false, error: retry.error.message}
+        : {ok: true};
+    }
+
     return error ? {ok: false, error: error.message} : {ok: true};
   } catch (err) {
     return {
@@ -602,15 +623,17 @@ export async function deleteSupabaseBeforeAfter(
   entryId: string,
   userId?: string,
 ): Promise<{ok: boolean; error?: string}> {
-  if (!supabase || !userId) {
-    return {ok: false, error: 'Faça login no Supabase para excluir.'};
+  if (!supabase) {
+    return {ok: false, error: 'Banco de dados Supabase não configurado.'};
   }
   try {
-    const {error} = await supabase
+    const query = supabase
       .from('before_after_entries')
       .delete()
-      .eq('id', entryId)
-      .eq('user_id', userId);
+      .eq('id', entryId);
+    const {error} = userId
+      ? await query.eq('user_id', userId)
+      : await query.is('user_id', null);
     return error ? {ok: false, error: error.message} : {ok: true};
   } catch (err) {
     return {
@@ -618,6 +641,41 @@ export async function deleteSupabaseBeforeAfter(
       error: err instanceof Error ? err.message : 'Erro ao excluir registro.',
     };
   }
+}
+
+export interface BeforeAfterAiResult {
+  suggestedTitle: string;
+  identifiedMaterial: string;
+  steps: string[];
+  suggestions: BeforeAfterSuggestion[];
+}
+
+export async function analyzeBeforeAfterWithAI(params: {
+  imageDataUrl: string;
+  material: string;
+  craftCategory: CraftSubcategory;
+  title?: string;
+  description?: string;
+}): Promise<BeforeAfterAiResult> {
+  const response = await fetch('/api/before-after-ai', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(params),
+  });
+  const payload = (await response.json()) as Partial<BeforeAfterAiResult> & {
+    error?: string;
+  };
+  if (!response.ok) {
+    throw new Error(
+      payload.error || 'Não foi possível gerar sugestões com a IA.',
+    );
+  }
+  return {
+    suggestedTitle: payload.suggestedTitle || '',
+    identifiedMaterial: payload.identifiedMaterial || params.material,
+    steps: Array.isArray(payload.steps) ? payload.steps : [],
+    suggestions: Array.isArray(payload.suggestions) ? payload.suggestions : [],
+  };
 }
 
 export async function fetchSupabaseHabits(
