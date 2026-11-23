@@ -37,7 +37,10 @@ import {MobileBottomNav} from './components/MobileBottomNav';
 import {AuthUser, LoginScreen} from './components/LoginScreen';
 import {EcopontosMapModal} from './components/EcopontosMapModal';
 import {ProfileModal} from './components/ProfileModal';
-import {CreativeCategoriesStrip} from './components/CreativeCategoriesStrip';
+import {
+  CRAFT_CATEGORIES,
+  CreativeCategoriesStrip,
+} from './components/CreativeCategoriesStrip';
 import {CategoryPhotoUploadModal} from './components/CategoryPhotoUploadModal';
 import {BeforeAfterModal} from './components/BeforeAfterModal';
 import {isSupabaseConfigured} from './lib/supabase';
@@ -665,10 +668,101 @@ export default function App() {
     return posts.filter((p) => p.isRealUserPost || Boolean(p.userId));
   }, [posts, hasAnyRealUserActivity]);
 
+  const normalizeSearchText = (value: string) =>
+    value
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+
+  const internalSearchResults = useMemo(() => {
+    const q = normalizeSearchText(searchQuery.trim());
+    if (!q) {
+      return {
+        posts: [] as EcoPost[],
+        photos: [] as CategoryPhotoEntry[],
+        beforeAfter: [] as BeforeAfterEntry[],
+        categories: [] as typeof CRAFT_CATEGORIES,
+        total: 0,
+      };
+    }
+
+    const realPosts = posts.filter((p) => p.isRealUserPost || Boolean(p.userId));
+    const matchedPosts = realPosts.filter((post) => {
+      const hay = normalizeSearchText(
+        [
+          post.title,
+          post.summary,
+          post.material,
+          post.category,
+          post.craftSubcategory || '',
+          post.authorName,
+          post.authorNeighborhood,
+          ...post.materialsNeeded,
+          ...post.steps,
+          ...post.comments.map((c) => c.content),
+        ].join(' '),
+      );
+      return hay.includes(q);
+    });
+
+    const matchedPhotos = categoryPhotos.filter((photo) => {
+      const catLabel =
+        CRAFT_CATEGORIES.find((c) => c.id === photo.craftCategory)?.label ||
+        photo.craftCategory;
+      const hay = normalizeSearchText(
+        [
+          photo.title,
+          photo.material,
+          catLabel,
+          photo.authorName,
+          photo.authorNeighborhood,
+        ].join(' '),
+      );
+      return hay.includes(q);
+    });
+
+    const matchedBeforeAfter = beforeAfterEntries.filter((entry) => {
+      const catLabel =
+        CRAFT_CATEGORIES.find((c) => c.id === entry.craftCategory)?.label ||
+        entry.craftCategory;
+      const hay = normalizeSearchText(
+        [
+          entry.title,
+          entry.description,
+          entry.material,
+          catLabel,
+          entry.authorName,
+          ...(entry.steps || []),
+          ...(entry.suggestions || []).map((s) => `${s.title} ${s.summary}`),
+        ].join(' '),
+      );
+      return hay.includes(q);
+    });
+
+    const matchedCategories = CRAFT_CATEGORIES.filter((cat) =>
+      normalizeSearchText(`${cat.label} ${cat.shortDesc}`).includes(q),
+    );
+
+    return {
+      posts: matchedPosts,
+      photos: matchedPhotos,
+      beforeAfter: matchedBeforeAfter,
+      categories: matchedCategories,
+      total:
+        matchedPosts.length +
+        matchedPhotos.length +
+        matchedBeforeAfter.length +
+        matchedCategories.length,
+    };
+  }, [searchQuery, posts, categoryPhotos, beforeAfterEntries]);
+
   const filteredPosts = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
+    const q = normalizeSearchText(searchQuery.trim());
 
     const list = visibleBasePosts.filter((post) => {
+      if (q && !(post.isRealUserPost || Boolean(post.userId))) {
+        return false;
+      }
       if (activeSection === 'saved' && !post.savedByMe) return false;
       if (
         activeSection === 'scrap-art' &&
@@ -700,16 +794,20 @@ export default function App() {
         return false;
       }
       if (q) {
-        const hay = [
-          post.title,
-          post.summary,
-          post.material,
-          post.authorName,
-          post.authorNeighborhood,
-          ...post.materialsNeeded,
-        ]
-          .join(' ')
-          .toLowerCase();
+        const hay = normalizeSearchText(
+          [
+            post.title,
+            post.summary,
+            post.material,
+            post.category,
+            post.craftSubcategory || '',
+            post.authorName,
+            post.authorNeighborhood,
+            ...post.materialsNeeded,
+            ...post.steps,
+            ...post.comments.map((c) => c.content),
+          ].join(' '),
+        );
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -884,31 +982,195 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Pill Search Bar */}
-                  <div className="mt-4 relative">
-                    <Search
-                      className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6d7a72]"
-                      aria-hidden="true"
-                    />
-                    <input
-                      type="text"
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      placeholder="Buscar por artesanato, jogos, decoração, instrumentos, PET..."
-                      aria-label="Buscar dicas e projetos"
-                      className="min-h-[44px] w-full rounded-full border border-[#e2e8f0] bg-[#f8fafc] pl-11 pr-11 text-sm text-[#0b1c30] placeholder:text-[#6d7a72] transition-all focus:border-[#0ea5e9] focus:bg-white focus:outline-none focus:ring-3 focus:ring-[#0ea5e9]/15"
-                    />
-                    {searchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => setSearchQuery('')}
-                        aria-label="Limpar busca"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full text-[#6d7a72] hover:bg-[#eff4ff] hover:text-[#0b1c30]"
-                      >
-                        <X className="h-4 w-4" aria-hidden="true" />
-                      </button>
-                    )}
-                  </div>
+                  {/* Internal Site Search Bar (real user results only, no AI) */}
+                  <form
+                    onSubmit={(e) => e.preventDefault()}
+                    className="mt-4 flex items-center gap-2"
+                    role="search"
+                  >
+                    <div className="relative flex-1">
+                      <Search
+                        className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6d7a72]"
+                        aria-hidden="true"
+                      />
+                      <input
+                        type="search"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Pesquisar no site por publicações, fotos, materiais..."
+                        aria-label="Pesquisar conteúdo publicado por usuários no site"
+                        className="min-h-[44px] w-full rounded-full border border-[#e2e8f0] bg-[#f8fafc] pl-11 pr-10 text-sm text-[#0b1c30] placeholder:text-[#6d7a72] transition-all focus:border-[#0ea5e9] focus:bg-white focus:outline-none focus:ring-3 focus:ring-[#0ea5e9]/15"
+                      />
+                      {searchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSearchQuery('')}
+                          aria-label="Limpar pesquisa"
+                          className="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full text-[#6d7a72] hover:bg-[#eff4ff] hover:text-[#0b1c30]"
+                        >
+                          <X className="h-4 w-4" aria-hidden="true" />
+                        </button>
+                      )}
+                    </div>
+                    <button
+                      type="submit"
+                      className="min-h-[44px] shrink-0 rounded-full bg-[#006948] px-4 text-xs font-bold text-white hover:bg-[#005238] transition-colors"
+                    >
+                      Buscar
+                    </button>
+                  </form>
+
+                  {/* Live Internal Search Results (Real User Creations Only) */}
+                  {searchQuery.trim().length > 0 && (
+                    <div
+                      className="mt-3 rounded-2xl border border-[#0284c7]/25 bg-[#f8f9ff] p-3.5 space-y-3"
+                      aria-live="polite"
+                    >
+                      <div className="flex items-center justify-between gap-2 text-xs">
+                        <span className="font-extrabold text-[#0b1c30]">
+                          Pesquisa interna · {internalSearchResults.total}{' '}
+                          {internalSearchResults.total === 1
+                            ? 'resultado encontrado'
+                            : 'resultados encontrados'}
+                        </span>
+                        <span className="text-[11px] font-semibold text-[#006398]">
+                          Publicações reais de usuários
+                        </span>
+                      </div>
+
+                      {internalSearchResults.total === 0 ? (
+                        <div className="rounded-xl bg-white p-3 text-xs text-[#3d4a42] flex flex-wrap items-center justify-between gap-2">
+                          <span>
+                            Nenhuma publicação ou foto real de usuário encontrada para{' '}
+                            <strong>"{searchQuery.trim()}"</strong>.
+                          </span>
+                          <button
+                            type="button"
+                            onClick={openComposerGuarded}
+                            className="rounded-full bg-[#006948] px-3 py-1.5 text-[11px] font-bold text-white"
+                          >
+                            Publicar Dica
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                          {internalSearchResults.posts.length > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-[11px] font-bold uppercase tracking-wide text-[#006948]">
+                                Publicações de usuários ({internalSearchResults.posts.length})
+                              </p>
+                              {internalSearchResults.posts.map((post) => (
+                                <button
+                                  key={`search-post-${post.id}`}
+                                  type="button"
+                                  onClick={() => setDetailPostId(post.id)}
+                                  className="w-full rounded-xl bg-white p-2.5 text-left border border-[#bccac0]/30 hover:border-[#006948] transition-colors"
+                                >
+                                  <p className="text-xs font-extrabold text-[#0b1c30] truncate">
+                                    {post.title}
+                                  </p>
+                                  <p className="text-[11px] text-[#6d7a72] truncate">
+                                    Por {post.authorName} ({post.authorNeighborhood}) ·{' '}
+                                    {post.material}
+                                  </p>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {internalSearchResults.photos.length > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-[11px] font-bold uppercase tracking-wide text-[#006398]">
+                                Fotos enviadas nas categorias ({internalSearchResults.photos.length})
+                              </p>
+                              {internalSearchResults.photos.map((photo) => {
+                                const catLabel =
+                                  CRAFT_CATEGORIES.find(
+                                    (c) => c.id === photo.craftCategory,
+                                  )?.label || photo.craftCategory;
+                                return (
+                                  <button
+                                    key={`search-photo-${photo.id}`}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedCraft(photo.craftCategory);
+                                      setActiveSection('scrap-art');
+                                    }}
+                                    className="w-full flex items-center gap-2.5 rounded-xl bg-white p-2 text-left border border-[#bccac0]/30 hover:border-[#006398] transition-colors"
+                                  >
+                                    <img
+                                      src={photo.imageUrl}
+                                      alt={photo.title}
+                                      className="h-10 w-10 rounded-lg object-cover shrink-0"
+                                    />
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-extrabold text-[#0b1c30] truncate">
+                                        {photo.title}
+                                      </p>
+                                      <p className="text-[11px] text-[#6d7a72] truncate">
+                                        {catLabel} · {photo.material} · {photo.authorName}
+                                      </p>
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+
+                          {internalSearchResults.beforeAfter.length > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-[11px] font-bold uppercase tracking-wide text-[#006948]">
+                                Banco Antes e Depois ({internalSearchResults.beforeAfter.length})
+                              </p>
+                              {internalSearchResults.beforeAfter.map((entry) => (
+                                <button
+                                  key={`search-ba-${entry.id}`}
+                                  type="button"
+                                  onClick={() =>
+                                    setBeforeAfterModalState({
+                                      isOpen: true,
+                                      craft: entry.craftCategory,
+                                    })
+                                  }
+                                  className="w-full rounded-xl bg-white p-2.5 text-left border border-[#bccac0]/30 hover:border-[#006948] transition-colors"
+                                >
+                                  <p className="text-xs font-extrabold text-[#0b1c30] truncate">
+                                    {entry.title}
+                                  </p>
+                                  <p className="text-[11px] text-[#6d7a72] truncate">
+                                    {entry.material} · {entry.authorName}
+                                  </p>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {internalSearchResults.categories.length > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-[11px] font-bold uppercase tracking-wide text-[#3d4a42]">
+                                Categorias do site
+                              </p>
+                              <div className="flex flex-wrap gap-1.5">
+                                {internalSearchResults.categories.map((cat) => (
+                                  <button
+                                    key={`search-cat-${cat.id}`}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedCraft(cat.id);
+                                      setActiveSection('scrap-art');
+                                    }}
+                                    className="rounded-full bg-white border border-[#bccac0]/40 px-3 py-1.5 text-xs font-bold text-[#006398] hover:border-[#006398]"
+                                  >
+                                    {cat.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Category Segmented Controls + Sort */}
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -1230,14 +1492,14 @@ export default function App() {
         prefillCategory={composerPrefillCategory}
         prefillCraftSubcategory={composerPrefillCraft}
         defaultAuthorName={currentUser?.name}
-        defaultNeighborhood={currentUser?.neighborhood}
+        defaultNeighborhood={currentUser?.neighborhood || 'Santo André, SP'}
       />
 
       <CategoryPhotoUploadModal
         isOpen={Boolean(uploadModalCraft)}
         initialCraft={uploadModalCraft || 'artesanato'}
         authorName={currentUser?.name || 'Membro'}
-        authorNeighborhood={currentUser?.neighborhood || 'Comunidade'}
+        authorNeighborhood={currentUser?.neighborhood || 'Santo André, SP'}
         onClose={() => setUploadModalCraft(null)}
         onSavePhoto={handleSaveCategoryPhoto}
       />

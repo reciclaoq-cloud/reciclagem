@@ -71,7 +71,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
   );
   const [authorName, setAuthorName] = useState(defaultAuthorName || 'Você');
   const [neighborhood, setNeighborhood] = useState(
-    defaultNeighborhood || 'Centro',
+    defaultNeighborhood || 'Santo André, SP',
   );
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -136,7 +136,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       isRealUserPost: true,
       authorName: cleanName,
       authorHandle: `@${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 14) || 'reciclaoq'}`,
-      authorNeighborhood: neighborhood.trim() || 'Comunidade Local',
+      authorNeighborhood: neighborhood.trim() || 'Santo André, SP',
       authorInitials: initials || 'RQ',
       createdAt: 'Agora mesmo',
       timestampOrder: Date.now(),
@@ -327,7 +327,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                   aria-label="Cidade e Estado"
                   value={neighborhood}
                   onChange={(e) => setNeighborhood(e.target.value)}
-                  placeholder="Cidade, UF"
+                  placeholder="Santo André, SP"
                   className="min-h-[42px] w-full rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] px-3 text-sm text-[#0b1c30] focus:border-[#0ea5e9] focus:bg-white focus:outline-none"
                 />
               </div>

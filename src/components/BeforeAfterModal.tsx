@@ -205,7 +205,7 @@ export const BeforeAfterModal: React.FC<BeforeAfterModalProps> = ({
       userId: currentUser?.id,
       authorName,
       authorHandle: `@${authorName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 14) || 'reciclaoq'}`,
-      authorNeighborhood: currentUser?.neighborhood || 'Banco de Dados & IA',
+      authorNeighborhood: currentUser?.neighborhood || 'Santo André, SP',
       authorInitials: currentUser?.initials || 'IA',
       craftCategory,
       material,
