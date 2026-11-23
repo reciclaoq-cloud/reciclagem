@@ -136,7 +136,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       isRealUserPost: true,
       authorName: cleanName,
       authorHandle: `@${cleanName.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 14) || 'reciclaoq'}`,
-      authorNeighborhood: neighborhood.trim() || 'Bairro Sustentável',
+      authorNeighborhood: neighborhood.trim() || 'Comunidade Local',
       authorInitials: initials || 'RQ',
       createdAt: 'Agora mesmo',
       timestampOrder: Date.now(),
