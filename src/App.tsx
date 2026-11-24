@@ -1,4 +1,4 @@
-import React, {useEffect, useMemo, useState} from 'react';
+import React, {useEffect, useMemo, useRef, useState} from 'react';
 import {
   ArrowLeftRight,
   ArrowUpDown,
@@ -97,6 +97,8 @@ export default function App() {
     MaterialType.ALL,
   );
   const [searchQuery, setSearchQuery] = useState('');
+  const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [sortBy, setSortBy] = useState<'recent' | 'popular'>('recent');
   const [difficultyFilter, setDifficultyFilter] = useState<
     'todas' | 'Fácil' | 'Intermediário'
@@ -1029,17 +1031,17 @@ export default function App() {
               activeSection === 'saved') && (
               <>
                 {/* Editorial Intro + Search + Segmented Category Bar */}
-                <section className="eco-card rounded-3xl p-5 sm:p-6">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-[#0b1c30] text-balance">
+                <section className="eco-card rounded-3xl p-4 sm:p-6">
+                  <div className="flex flex-col gap-3">
+                    <div className="w-full min-w-0">
+                      <h1 className="text-lg sm:text-2xl font-extrabold tracking-tight text-[#0b1c30] leading-snug break-words">
                         {activeSection === 'scrap-art'
                           ? 'Oficina de Arte com Sucata'
                           : activeSection === 'saved'
                             ? 'Suas Dicas e Projetos Salvos'
                             : 'Práticas diárias de reciclagem e reuso'}
                       </h1>
-                      <p className="mt-1 text-sm text-[#3d4a42] leading-relaxed">
+                      <p className="mt-1.5 text-xs sm:text-sm text-[#3d4a42] leading-relaxed break-words">
                         {activeSection === 'scrap-art'
                           ? 'Explore criações em 3D por categoria, envie fotos do que produzir e compare o Antes e Depois.'
                           : activeSection === 'saved'
@@ -1048,46 +1050,90 @@ export default function App() {
                       </p>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setBeforeAfterModalState({
-                            isOpen: true,
-                            craft: selectedCraft || undefined,
-                          })
-                        }
-                        className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-[#e6f7f1] px-3.5 py-2 text-xs font-bold text-[#006948] hover:bg-[#d1fae5] whitespace-nowrap transition-colors"
-                      >
-                        <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
-                        <span>Antes e Depois</span>
-                      </button>
-
-                      {activeSection === 'feed' && (
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <button
                           type="button"
-                          onClick={() => handleSelectSection('triage')}
-                          className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-[#e0f2fe] px-3.5 py-2 text-xs font-bold text-[#006398] hover:bg-[#cce5ff] whitespace-nowrap transition-colors"
+                          onClick={() =>
+                            setBeforeAfterModalState({
+                              isOpen: true,
+                              craft: selectedCraft || undefined,
+                            })
+                          }
+                          className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-[#e6f7f1] px-3.5 py-2 text-xs font-bold text-[#006948] hover:bg-[#d1fae5] whitespace-nowrap transition-colors"
                         >
-                          <ScanSearch className="h-4 w-4" aria-hidden="true" />
-                          <span>Escanear material</span>
+                          <ArrowLeftRight className="h-4 w-4" aria-hidden="true" />
+                          <span>Antes e Depois</span>
                         </button>
-                      )}
+
+                        {activeSection === 'feed' && (
+                          <button
+                            type="button"
+                            onClick={() => handleSelectSection('triage')}
+                            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-[#e0f2fe] px-3.5 py-2 text-xs font-bold text-[#006398] hover:bg-[#cce5ff] whitespace-nowrap transition-colors"
+                          >
+                            <ScanSearch className="h-4 w-4" aria-hidden="true" />
+                            <span>Escanear material</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Mobile & Tablet Search Symbol Toggle */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMobileSearchOpen((prev) => {
+                            const next = !prev;
+                            if (next) {
+                              window.setTimeout(() => {
+                                searchInputRef.current?.focus();
+                              }, 50);
+                            } else {
+                              setSearchQuery('');
+                            }
+                            return next;
+                          });
+                        }}
+                        aria-expanded={
+                          isMobileSearchOpen || searchQuery.trim().length > 0
+                        }
+                        aria-label={
+                          isMobileSearchOpen
+                            ? 'Fechar pesquisa'
+                            : 'Pesquisar no site'
+                        }
+                        className={`lg:hidden flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                          isMobileSearchOpen || searchQuery.trim().length > 0
+                            ? 'border-[#006948] bg-[#006948] text-white'
+                            : 'border-[#e2e8f0] bg-[#f8fafc] text-[#006398] hover:bg-[#e0f2fe]'
+                        }`}
+                      >
+                        {isMobileSearchOpen ? (
+                          <X className="h-4 w-4" aria-hidden="true" />
+                        ) : (
+                          <Search className="h-4 w-4" aria-hidden="true" />
+                        )}
+                      </button>
                     </div>
                   </div>
 
-                  {/* Internal Site Search Bar (real user results only, no AI) */}
+                  {/* Internal Site Search Bar (always visible on desktop, icon-triggered on mobile/tablet) */}
                   <form
                     onSubmit={(e) => e.preventDefault()}
-                    className="mt-4 flex items-center gap-2"
+                    className={`mt-3.5 items-center gap-2 ${
+                      isMobileSearchOpen || searchQuery.trim().length > 0
+                        ? 'flex'
+                        : 'hidden lg:flex'
+                    }`}
                     role="search"
                   >
-                    <div className="relative flex-1">
+                    <div className="relative flex-1 min-w-0">
                       <Search
                         className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#6d7a72]"
                         aria-hidden="true"
                       />
                       <input
+                        ref={searchInputRef}
                         type="search"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
@@ -1108,9 +1154,11 @@ export default function App() {
                     </div>
                     <button
                       type="submit"
-                      className="min-h-[44px] shrink-0 rounded-full bg-[#006948] px-4 text-xs font-bold text-white hover:bg-[#005238] transition-colors"
+                      aria-label="Buscar"
+                      className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center gap-1.5 rounded-full bg-[#006948] px-3 lg:px-4 text-xs font-bold text-white hover:bg-[#005238] transition-colors"
                     >
-                      Buscar
+                      <Search className="h-4 w-4 lg:hidden" aria-hidden="true" />
+                      <span className="hidden lg:inline">Buscar</span>
                     </button>
                   </form>
 
