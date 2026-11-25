@@ -744,17 +744,23 @@ async function safeReadJsonResponse<T>(
 }
 
 export async function analyzeBeforeAfterWithAI(params: {
-  imageDataUrl: string;
+  imageDataUrl?: string;
   material: string;
   craftCategory: CraftSubcategory | 'auto';
   title?: string;
   description?: string;
+  allowTextOnly?: boolean;
 }): Promise<BeforeAfterAiResult> {
-  const compactImageUrl = await prepareAiImageDataUrl(params.imageDataUrl);
+  const compactImageUrl = params.imageDataUrl
+    ? await prepareAiImageDataUrl(params.imageDataUrl)
+    : undefined;
   const response = await fetch('/api/before-after-ai', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
-    body: JSON.stringify({...params, imageDataUrl: compactImageUrl}),
+    body: JSON.stringify({
+      ...params,
+      imageDataUrl: compactImageUrl,
+    }),
   });
   const payload = await safeReadJsonResponse<Partial<BeforeAfterAiResult>>(
     response,

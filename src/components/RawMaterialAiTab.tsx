@@ -6,6 +6,7 @@ import {
   Database,
   Lightbulb,
   ListOrdered,
+  RotateCcw,
   Send,
   Sparkles,
   Upload,
@@ -71,6 +72,7 @@ export const RawMaterialAiTab: React.FC<RawMaterialAiTabProps> = ({
   const [preparationTip, setPreparationTip] = useState('');
   const [suggestions, setSuggestions] = useState<BeforeAfterSuggestion[]>([]);
   const [selectedIdx, setSelectedIdx] = useState(0);
+  const [showAllSteps, setShowAllSteps] = useState(false);
   const [fallbackSteps, setFallbackSteps] = useState<string[]>([]);
 
   const fileRef = useRef<HTMLInputElement>(null);
@@ -78,23 +80,20 @@ export const RawMaterialAiTab: React.FC<RawMaterialAiTabProps> = ({
   const afterRef = useRef<HTMLInputElement>(null);
 
   const runAnalysis = async (
-    imageUrl: string,
+    imageUrl: string = rawImageUrl,
     selectedCategory: CraftSubcategory | 'auto' = craftChoice,
     selectedMaterial: Exclude<MaterialType, MaterialType.ALL> = material,
   ) => {
-    if (!imageUrl) {
-      setErrorMsg('Envie ou tire uma foto do material bruto primeiro.');
-      return;
-    }
     setIsAnalyzing(true);
     setErrorMsg('');
     setSavedNotice('');
     try {
       const result = await analyzeBeforeAfterWithAI({
-        imageDataUrl: imageUrl,
+        imageDataUrl: imageUrl || undefined,
         material: selectedMaterial,
         craftCategory: selectedCategory,
         description: notes.trim(),
+        allowTextOnly: !imageUrl,
       });
       setIdentifiedMaterial(result.identifiedMaterial);
       setPreparationTip(result.preparationTip);
@@ -156,7 +155,14 @@ export const RawMaterialAiTab: React.FC<RawMaterialAiTabProps> = ({
       : fallbackSteps) || [];
 
   const handleSaveEntry = async () => {
-    if (!rawImageUrl || suggestions.length === 0) return;
+    if (suggestions.length === 0) return;
+    if (!rawImageUrl) {
+      setErrorMsg(
+        'Para salvar no banco Antes e Depois, envie também a foto do material bruto (Antes).',
+      );
+      fileRef.current?.click();
+      return;
+    }
     setIsSavingDb(true);
     setErrorMsg('');
     try {
@@ -198,13 +204,13 @@ export const RawMaterialAiTab: React.FC<RawMaterialAiTabProps> = ({
         <div>
           <div className="inline-flex items-center gap-1.5 rounded-full bg-[#e6f7f1] px-3 py-1 text-xs font-extrabold text-[#006948]">
             <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Reutilização de Material Bruto com IA</span>
+            <span>Sugestões IA · Reutilização de Material Bruto</span>
           </div>
           <h1 className="mt-2 text-xl sm:text-2xl font-extrabold tracking-tight text-[#0b1c30]">
-            O que fazer com este material bruto?
+            O que fazer com este material?
           </h1>
           <p className="mt-1 text-sm text-[#3d4a42] leading-relaxed">
-            Envie a foto da sucata ou material bruto para a IA identificar o resíduo, sugerir 3 peças criativas e gerar o passo a passo completo.
+            Envie a foto do material bruto ou descreva o que você separou em casa para a IA gerar 3 sugestões criativas com materiais e passo a passo.
           </p>
         </div>
 
@@ -280,21 +286,21 @@ export const RawMaterialAiTab: React.FC<RawMaterialAiTabProps> = ({
                 htmlFor="ai-raw-notes"
                 className="block text-xs font-semibold text-[#3d4a42] mb-1"
               >
-                Detalhes opcionais (quantidade, tamanho)
+                O que você enviou / detalhes (quantidade, tamanho)
               </label>
               <input
                 id="ai-raw-notes"
                 type="text"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="Ex.: 2 caixas de papelão e tampinhas coloridas"
+                placeholder="Ex.: 2 garrafas PET de 2L e tampinhas coloridas"
                 className="min-h-[42px] w-full rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] px-3.5 text-sm text-[#0b1c30]"
               />
             </div>
           </div>
         </div>
 
-        {/* Upload Dropzone */}
+        {/* Upload Dropzone + Active AI Trigger */}
         <div className="rounded-3xl border-2 border-dashed border-[#0284c7]/35 bg-[#f8f9ff] p-5 text-center space-y-3">
           <input
             ref={fileRef}
@@ -326,20 +332,20 @@ export const RawMaterialAiTab: React.FC<RawMaterialAiTabProps> = ({
                   type="button"
                   disabled={isAnalyzing}
                   onClick={() => void runAnalysis(rawImageUrl, craftChoice, material)}
-                  className="eco-cta-gradient inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-5 text-xs font-bold text-white disabled:opacity-60"
+                  className="eco-cta-gradient inline-flex min-h-[42px] items-center gap-1.5 rounded-full px-5 text-xs font-bold text-white disabled:opacity-60"
                 >
                   <Sparkles className="h-4 w-4" aria-hidden="true" />
                   <span>
                     {isAnalyzing
-                      ? 'Analisando material...'
-                      : 'Gerar novas 3 sugestões com IA'}
+                      ? 'Gerando 3 sugestões...'
+                      : 'Gerar 3 sugestões com IA'}
                   </span>
                 </button>
                 <button
                   type="button"
                   disabled={isAnalyzing}
                   onClick={() => fileRef.current?.click()}
-                  className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-white border border-[#bccac0]/50 px-4 text-xs font-bold text-[#006398] hover:bg-[#eff4ff]"
+                  className="inline-flex min-h-[42px] items-center gap-1.5 rounded-full bg-white border border-[#bccac0]/50 px-4 text-xs font-bold text-[#006398] hover:bg-[#eff4ff]"
                 >
                   <Upload className="h-3.5 w-3.5" aria-hidden="true" />
                   <span>Trocar foto</span>
@@ -347,34 +353,49 @@ export const RawMaterialAiTab: React.FC<RawMaterialAiTabProps> = ({
               </div>
             </div>
           ) : (
-            <div className="py-3 space-y-3">
+            <div className="py-2 space-y-3">
               <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e0f2fe] text-[#006398]">
                 <Sparkles className="h-6 w-6" aria-hidden="true" />
               </div>
               <div>
                 <p className="text-sm font-bold text-[#0b1c30]">
-                  Envie a foto do material bruto para a IA analisar
+                  Envie uma foto do material ou gere ideias pelo tipo selecionado
                 </p>
                 <p className="mt-0.5 text-xs text-[#3d4a42]">
-                  Garrafas, latas, papelão, potes de vidro, tampinhas ou tecidos.
+                  Garrafas PET, latas, papelão, potes de vidro, tampinhas ou tecidos.
                 </p>
               </div>
               <div className="flex flex-wrap items-center justify-center gap-2.5">
                 <button
                   type="button"
+                  disabled={isAnalyzing}
                   onClick={() => fileRef.current?.click()}
-                  className="eco-cta-gradient inline-flex min-h-[42px] items-center gap-2 rounded-full px-5 text-xs font-bold text-white"
+                  className="eco-cta-gradient inline-flex min-h-[42px] items-center gap-2 rounded-full px-5 text-xs font-bold text-white disabled:opacity-60"
                 >
                   <Upload className="h-4 w-4" aria-hidden="true" />
                   <span>Enviar foto do material</span>
                 </button>
                 <button
                   type="button"
+                  disabled={isAnalyzing}
                   onClick={() => cameraRef.current?.click()}
-                  className="inline-flex min-h-[42px] items-center gap-2 rounded-full bg-white border border-[#006398]/30 px-4 text-xs font-bold text-[#006398] hover:bg-[#e0f2fe]"
+                  className="inline-flex min-h-[42px] items-center gap-2 rounded-full bg-white border border-[#006398]/30 px-4 text-xs font-bold text-[#006398] hover:bg-[#e0f2fe] disabled:opacity-60"
                 >
                   <Camera className="h-4 w-4" aria-hidden="true" />
                   <span>Tirar foto agora</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isAnalyzing}
+                  onClick={() => void runAnalysis('', craftChoice, material)}
+                  className="inline-flex min-h-[42px] items-center gap-2 rounded-full bg-[#e6f7f1] border border-[#006948]/30 px-4 text-xs font-bold text-[#006948] hover:bg-[#d1fae5] disabled:opacity-60"
+                >
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
+                  <span>
+                    {isAnalyzing
+                      ? 'Gerando 3 sugestões...'
+                      : `Gerar 3 sugestões para ${material}`}
+                  </span>
                 </button>
               </div>
             </div>
@@ -385,14 +406,23 @@ export const RawMaterialAiTab: React.FC<RawMaterialAiTabProps> = ({
           <div className="rounded-2xl bg-[#eff4ff] p-4 text-xs font-semibold text-[#006398] flex items-center gap-2.5">
             <Sparkles className="h-4 w-4 animate-pulse shrink-0" aria-hidden="true" />
             <span>
-              A IA está identificando o material bruto e preparando 3 sugestões de peças com passo a passo...
+              A IA está analisando o material e preparando 3 sugestões completas com passo a passo...
             </span>
           </div>
         )}
 
         {errorMsg && (
-          <div className="rounded-2xl bg-[#ffdad6]/70 px-4 py-3 text-xs font-semibold text-[#93000a]">
-            {errorMsg}
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-[#ffdad6]/75 px-4 py-3 text-xs font-semibold text-[#93000a]">
+            <span>{errorMsg}</span>
+            <button
+              type="button"
+              disabled={isAnalyzing}
+              onClick={() => void runAnalysis(rawImageUrl, craftChoice, material)}
+              className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full bg-white px-3.5 text-xs font-bold text-[#93000a] hover:bg-[#fff5f5] disabled:opacity-60"
+            >
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Tentar novamente</span>
+            </button>
           </div>
         )}
       </section>
@@ -402,8 +432,8 @@ export const RawMaterialAiTab: React.FC<RawMaterialAiTabProps> = ({
         <section className="eco-card rounded-3xl p-5 sm:p-6 space-y-5">
           <div className="rounded-2xl bg-[#e6f7f1]/75 border border-[#006948]/20 p-4 space-y-1.5">
             <p className="flex items-center gap-1.5 text-xs font-extrabold text-[#006948]">
-              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-              <span>Material bruto identificado: {identifiedMaterial}</span>
+              <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>Material analisado: {identifiedMaterial}</span>
             </p>
             {preparationTip && (
               <p className="text-xs text-[#3d4a42] leading-relaxed">
@@ -412,11 +442,22 @@ export const RawMaterialAiTab: React.FC<RawMaterialAiTabProps> = ({
             )}
           </div>
 
-          <div className="space-y-2.5">
-            <p className="flex items-center gap-1.5 text-sm font-extrabold text-[#0b1c30]">
-              <Lightbulb className="h-4 w-4 text-[#006398]" aria-hidden="true" />
-              <span>3 Sugestões da IA para reutilizar este material (toque para ver o passo a passo)</span>
-            </p>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="flex items-center gap-1.5 text-sm font-extrabold text-[#0b1c30]">
+                <Lightbulb className="h-4 w-4 text-[#006398] shrink-0" aria-hidden="true" />
+                <span>3 Sugestões da IA para reutilizar este material</span>
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowAllSteps((prev) => !prev)}
+                className="rounded-full bg-[#eff4ff] px-3 py-1.5 text-[11px] font-bold text-[#006398] hover:bg-[#dce9ff]"
+              >
+                {showAllSteps
+                  ? 'Mostrar apenas selecionada'
+                  : 'Ver passo a passo das 3'}
+              </button>
+            </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               {suggestions.map((sug, idx) => {
@@ -429,72 +470,144 @@ export const RawMaterialAiTab: React.FC<RawMaterialAiTabProps> = ({
                     key={`${sug.title}-${idx}`}
                     type="button"
                     onClick={() => setSelectedIdx(idx)}
-                    className={`rounded-2xl border p-3.5 text-left transition-all ${
+                    className={`rounded-2xl border p-3.5 text-left transition-all flex flex-col justify-between ${
                       selected
                         ? 'border-[#006948] bg-[#e6f7f1] shadow-xs'
                         : 'border-[#bccac0]/40 bg-white hover:border-[#0284c7]'
                     }`}
                   >
-                    <div className="flex items-center justify-between gap-1 text-[10px] font-bold uppercase tracking-wide text-[#006398]">
-                      <span>Sugestão {idx + 1} · {catLabel}</span>
-                      <span className="inline-flex items-center gap-1 text-[#3d4a42]">
-                        <Clock className="h-3 w-3" aria-hidden="true" />
-                        {sug.estimatedTime}
+                    <div>
+                      <div className="flex items-center justify-between gap-1 text-[10px] font-bold uppercase tracking-wide text-[#006398]">
+                        <span>
+                          Sugestão {idx + 1} · {catLabel}
+                        </span>
+                        <span className="inline-flex items-center gap-1 text-[#3d4a42]">
+                          <Clock className="h-3 w-3" aria-hidden="true" />
+                          {sug.estimatedTime}
+                        </span>
+                      </div>
+                      <p className="mt-1.5 text-xs font-extrabold text-[#0b1c30]">
+                        {sug.title}
+                      </p>
+                      <p className="mt-1 text-[11px] text-[#3d4a42] leading-snug">
+                        {sug.summary}
+                      </p>
+                    </div>
+                    <div className="mt-2.5 flex items-center justify-between text-[10px] font-bold text-[#006948]">
+                      <span>{sug.difficulty}</span>
+                      <span>
+                        {(sug.steps?.length || activeSteps.length) > 0
+                          ? `${sug.steps?.length || activeSteps.length} passos`
+                          : 'Ver detalhes'}
                       </span>
                     </div>
-                    <p className="mt-1.5 text-xs font-extrabold text-[#0b1c30]">
-                      {sug.title}
-                    </p>
-                    <p className="mt-1 text-[11px] text-[#3d4a42] leading-snug">
-                      {sug.summary}
-                    </p>
                   </button>
                 );
               })}
             </div>
           </div>
 
-          {activeSuggestion?.extraMaterials &&
-            activeSuggestion.extraMaterials.length > 0 && (
-              <div className="rounded-2xl bg-[#f8f9ff] p-4 border border-[#bccac0]/35">
-                <p className="text-xs font-extrabold text-[#006398] mb-2">
-                  Materiais extras recomendados:
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {activeSuggestion.extraMaterials.map((item, i) => (
-                    <span
-                      key={i}
-                      className="rounded-full bg-white border border-[#bccac0]/40 px-3 py-1 text-xs font-medium text-[#3d4a42]"
-                    >
-                      {item}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-          {activeSteps.length > 0 && (
-            <div className="rounded-2xl bg-[#f8f9ff] p-4 border border-[#bccac0]/35">
-              <p className="flex items-center gap-1.5 text-xs font-extrabold text-[#006948] mb-2.5">
-                <ListOrdered className="h-4 w-4" aria-hidden="true" />
-                <span>
-                  Passo a passo: {activeSuggestion?.title || 'Como fazer'}
-                </span>
-              </p>
-              <ol className="space-y-2">
-                {activeSteps.map((step, i) => (
-                  <li
-                    key={i}
-                    className="flex items-start gap-2.5 text-xs sm:text-[13px] text-[#3d4a42]"
+          {showAllSteps ? (
+            <div className="space-y-4">
+              {suggestions.map((sug, idx) => {
+                const sugSteps =
+                  sug.steps && sug.steps.length > 0 ? sug.steps : fallbackSteps;
+                return (
+                  <div
+                    key={`detail-${sug.title}-${idx}`}
+                    className="rounded-2xl bg-[#f8f9ff] p-4 border border-[#bccac0]/40 space-y-3"
                   >
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#d1fae5] text-[11px] font-bold text-[#006948]">
-                      {i + 1}
-                    </span>
-                    <span className="leading-relaxed">{step}</span>
-                  </li>
-                ))}
-              </ol>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-xs sm:text-sm font-extrabold text-[#0b1c30]">
+                        Sugestão {idx + 1}: {sug.title}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedIdx(idx);
+                          setShowAllSteps(false);
+                        }}
+                        className="rounded-full bg-white border border-[#006948]/30 px-3 py-1 text-[11px] font-bold text-[#006948]"
+                      >
+                        Selecionar esta
+                      </button>
+                    </div>
+                    {sug.extraMaterials && sug.extraMaterials.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {sug.extraMaterials.map((item, i) => (
+                          <span
+                            key={i}
+                            className="rounded-full bg-white border border-[#bccac0]/40 px-2.5 py-0.5 text-[11px] font-medium text-[#3d4a42]"
+                          >
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {sugSteps.length > 0 && (
+                      <ol className="space-y-1.5">
+                        {sugSteps.map((step, i) => (
+                          <li
+                            key={i}
+                            className="flex items-start gap-2 text-xs text-[#3d4a42]"
+                          >
+                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#d1fae5] text-[11px] font-bold text-[#006948]">
+                              {i + 1}
+                            </span>
+                            <span className="leading-relaxed">{step}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    )}
+                  </div>
+                );
+              })}
             </div>
+          ) : (
+            <>
+              {activeSuggestion?.extraMaterials &&
+                activeSuggestion.extraMaterials.length > 0 && (
+                  <div className="rounded-2xl bg-[#f8f9ff] p-4 border border-[#bccac0]/35">
+                    <p className="text-xs font-extrabold text-[#006398] mb-2">
+                      Materiais extras recomendados (Sugestão {selectedIdx + 1}):
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {activeSuggestion.extraMaterials.map((item, i) => (
+                        <span
+                          key={i}
+                          className="rounded-full bg-white border border-[#bccac0]/40 px-3 py-1 text-xs font-medium text-[#3d4a42]"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+              {activeSteps.length > 0 && (
+                <div className="rounded-2xl bg-[#f8f9ff] p-4 border border-[#bccac0]/35">
+                  <p className="flex items-center gap-1.5 text-xs font-extrabold text-[#006948] mb-2.5">
+                    <ListOrdered className="h-4 w-4" aria-hidden="true" />
+                    <span>
+                      Passo a passo: {activeSuggestion?.title || 'Como fazer'}
+                    </span>
+                  </p>
+                  <ol className="space-y-2">
+                    {activeSteps.map((step, i) => (
+                      <li
+                        key={i}
+                        className="flex items-start gap-2.5 text-xs sm:text-[13px] text-[#3d4a42]"
+                      >
+                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#d1fae5] text-[11px] font-bold text-[#006948]">
+                          {i + 1}
+                        </span>
+                        <span className="leading-relaxed">{step}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </>
           )}
 
           {/* Optional Finished Photo + Save / Publish Actions */}

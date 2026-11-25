@@ -52,31 +52,96 @@ function formatGeminiError(err: unknown): string {
   return raw || 'Erro inesperado ao consultar a IA.';
 }
 
-async function generateContentWithRetry(
-  params: Parameters<typeof ai.models.generateContent>[0],
-  maxAttempts = 3,
-) {
+function parseJsonPayload<T>(rawText: string | undefined): T {
+  const cleaned = (rawText ?? '{}')
+    .trim()
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  return JSON.parse(cleaned || '{}') as T;
+}
+
+function isRetryableGeminiError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err || '');
+  return (
+    msg.includes('503') ||
+    msg.includes('UNAVAILABLE') ||
+    msg.includes('high demand') ||
+    msg.includes('429') ||
+    msg.includes('RESOURCE_EXHAUSTED') ||
+    msg.includes('ECONNRESET') ||
+    msg.includes('fetch failed') ||
+    msg.includes('404') ||
+    msg.includes('NOT_FOUND')
+  );
+}
+
+async function generateWithModelFallback(params: {
+  contents: Parameters<typeof ai.models.generateContent>[0]['contents'];
+  systemInstruction?: string;
+  responseSchema: NonNullable<
+    Parameters<typeof ai.models.generateContent>[0]['config']
+  >['responseSchema'];
+}) {
+  const candidates: Array<{
+    model: string;
+    thinkingLevel?: ThinkingLevel;
+    attempts: number;
+  }> = [
+    {model: 'gemini-4-hydrogen', thinkingLevel: ThinkingLevel.LOW, attempts: 2},
+    {model: 'gemini-3.1-flash-lite', attempts: 2},
+  ];
+
   let lastError: unknown;
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await ai.models.generateContent(params);
-    } catch (err) {
-      lastError = err;
-      const msg = err instanceof Error ? err.message : String(err || '');
-      const isTransient =
-        msg.includes('503') ||
-        msg.includes('UNAVAILABLE') ||
-        msg.includes('429') ||
-        msg.includes('RESOURCE_EXHAUSTED') ||
-        msg.includes('ECONNRESET') ||
-        msg.includes('fetch failed');
-      if (!isTransient || attempt === maxAttempts) {
-        throw err;
+  const attemptErrors: string[] = [];
+  for (const candidate of candidates) {
+    for (let attempt = 1; attempt <= candidate.attempts; attempt++) {
+      try {
+        return await ai.models.generateContent({
+          model: candidate.model,
+          contents: params.contents,
+          config: {
+            ...(params.systemInstruction
+              ? {systemInstruction: params.systemInstruction}
+              : {}),
+            responseMimeType: 'application/json',
+            ...(candidate.thinkingLevel
+              ? {thinkingConfig: {thinkingLevel: candidate.thinkingLevel}}
+              : {}),
+            responseSchema: params.responseSchema,
+          },
+        });
+      } catch (err) {
+        lastError = err;
+        const msg = err instanceof Error ? err.message : String(err || '');
+        attemptErrors.push(`${candidate.model}#${attempt}: ${msg.slice(0, 180)}`);
+        if (!isRetryableGeminiError(err)) {
+          const wrapped = new Error(`${msg} | attempts=${attemptErrors.join(' ; ')}`);
+          throw wrapped;
+        }
+        if (attempt < candidate.attempts) {
+          await new Promise((resolve) => setTimeout(resolve, attempt * 600));
+        }
       }
-      await new Promise((resolve) => setTimeout(resolve, attempt * 750));
     }
   }
+  console.error('[Gemini Fallback Failed]', attemptErrors.join(' | '));
   throw lastError;
+}
+
+function getGeminiHttpStatus(err: unknown): number {
+  const raw = err instanceof Error ? err.message : String(err || '');
+  if (
+    raw.includes('503') ||
+    raw.includes('UNAVAILABLE') ||
+    raw.includes('high demand')
+  ) {
+    return 503;
+  }
+  if (raw.includes('429') || raw.includes('RESOURCE_EXHAUSTED')) {
+    return 429;
+  }
+  return 500;
 }
 
 async function startServer() {
@@ -102,53 +167,67 @@ async function startServer() {
         craftCategory = 'artesanato',
         title = '',
         description = '',
+        allowTextOnly = false,
       } = req.body as {
         imageDataUrl?: string;
         material?: string;
         craftCategory?: string;
         title?: string;
         description?: string;
+        allowTextOnly?: boolean;
       };
 
-      if (!imageDataUrl || typeof imageDataUrl !== 'string') {
+      const hasImage =
+        typeof imageDataUrl === 'string' && imageDataUrl.trim().length > 0;
+
+      if (!hasImage && !allowTextOnly) {
         return res.status(400).json({
           error: 'Envie a foto do Antes (material/sucata) para gerar com IA.',
         });
       }
 
-      const parsedImage = parseDataUrl(imageDataUrl);
-      if (!parsedImage) {
+      const parsedImage = hasImage ? parseDataUrl(imageDataUrl!) : null;
+      if (hasImage && !parsedImage) {
         return res.status(400).json({
           error: 'Formato de imagem inválido. Envie uma foto JPG, PNG ou WebP.',
         });
       }
 
+      if (!hasImage && !material.trim() && !description.trim() && !title.trim()) {
+        return res.status(400).json({
+          error:
+            'Envie uma foto ou informe o material bruto para a IA gerar as 3 sugestões.',
+        });
+      }
+
       const categoryLabel =
         craftCategory === 'auto'
-          ? 'Escolha automaticamente a melhor entre: Artesanato, Jogos e Brinquedos, Decoração ou Instrumentos'
+          ? 'Escolha automaticamente as melhores entre: Artesanato, Jogos e Brinquedos, Decoração ou Instrumentos'
           : CRAFT_LABELS[craftCategory] || 'Artesanato';
 
       const prompt = [
-        'Analise a foto enviada do material bruto / reciclável / sucata (Antes).',
+        parsedImage
+          ? 'Analise a foto enviada do material bruto / reciclável / sucata (Antes).'
+          : 'Analise o material bruto / reciclável informado pelo usuário para reutilização criativa.',
         `Categoria desejada: ${categoryLabel}.`,
         `Material base informado: ${material}.`,
         title ? `Título ou ideia inicial: ${title}.` : '',
-        description ? `Observação do usuário: ${description}.` : '',
+        description ? `Observação/descrição do usuário: ${description}.` : '',
         '',
         'Responda em português do Brasil (pt-BR) com:',
         '1. suggestedTitle: um título curto e prático para a transformação principal.',
-        '2. identifiedMaterial: descrição clara do material bruto identificado na foto (ex.: 2 garrafas PET transparentes de 2L, tampa de papelão, etc.).',
+        '2. identifiedMaterial: descrição clara do material bruto identificado (ex.: 2 garrafas PET transparentes de 2L, caixas de papelão e tampinhas coloridas, etc.).',
         '3. preparationTip: dica rápida e segura de higienização, secagem ou preparo desse material bruto antes de começar.',
-        '4. suggestions: EXATAMENTE 3 sugestões criativas, úteis e realistas de peças que podem ser feitas reutilizando esse material bruto (cada sugestão deve ter title, suggestedCategory ("artesanato", "jogos-brinquedos", "decoracao" ou "instrumentos"), difficulty ("Fácil" ou "Intermediário"), estimatedTime (ex.: "25 min"), summary (1 frase prática), extraMaterials (3 a 5 itens simples) e steps (4 a 6 passos claros e seguros para fazer aquela peça)).',
+        '4. suggestions: EXATAMENTE 3 sugestões distintas, criativas, úteis e realistas de peças que podem ser feitas reutilizando esse material bruto. Cada uma das 3 sugestões deve ter: title, suggestedCategory ("artesanato", "jogos-brinquedos", "decoracao" ou "instrumentos"), difficulty ("Fácil" ou "Intermediário"), estimatedTime (ex.: "25 min"), summary (1 frase prática explicando o resultado), extraMaterials (3 a 5 itens simples) e steps (4 a 6 passos claros, práticos e seguros para montar aquela peça específica, sem numeração no início de cada string).',
         '5. steps: o passo a passo completo (5 a 7 etapas em ordem lógica, sem numeração no texto pois a UI já numera) de como fazer a primeira/melhor sugestão com segurança.',
       ]
         .filter(Boolean)
         .join('\n');
 
-      const response = await generateContentWithRetry({
-        model: 'gemini-4-hydrogen',
-        contents: {
-          parts: [
+      const parts: Array<
+        {inlineData: {mimeType: string; data: string}} | {text: string}
+      > = parsedImage
+        ? [
             {
               inlineData: {
                 mimeType: parsedImage.mimeType,
@@ -156,67 +235,65 @@ async function startServer() {
               },
             },
             {text: prompt},
-          ],
-        },
-        config: {
-          systemInstruction:
-            'Você é um mestre em upcycling, sustentabilidade e arte com sucata. Sempre forneça instruções práticas, seguras (especialmente ao lidar com cortes/bordas) e exatas 3 sugestões criativas em português do Brasil.',
-          responseMimeType: 'application/json',
-          thinkingConfig: {thinkingLevel: ThinkingLevel.LOW},
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              suggestedTitle: {type: Type.STRING},
-              identifiedMaterial: {type: Type.STRING},
-              preparationTip: {type: Type.STRING},
-              steps: {
-                type: Type.ARRAY,
-                items: {type: Type.STRING},
-              },
-              suggestions: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    title: {type: Type.STRING},
-                    suggestedCategory: {type: Type.STRING},
-                    difficulty: {type: Type.STRING},
-                    estimatedTime: {type: Type.STRING},
-                    summary: {type: Type.STRING},
-                    extraMaterials: {
-                      type: Type.ARRAY,
-                      items: {type: Type.STRING},
-                    },
-                    steps: {
-                      type: Type.ARRAY,
-                      items: {type: Type.STRING},
-                    },
+          ]
+        : [{text: prompt}];
+
+      const response = await generateWithModelFallback({
+        contents: {parts},
+        systemInstruction:
+          'Você é um mestre em upcycling, sustentabilidade e arte com sucata. Sempre forneça instruções práticas, seguras (especialmente ao lidar com cortes/bordas) e EXATAMENTE 3 sugestões distintas e completas em português do Brasil.',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            suggestedTitle: {type: Type.STRING},
+            identifiedMaterial: {type: Type.STRING},
+            preparationTip: {type: Type.STRING},
+            steps: {
+              type: Type.ARRAY,
+              items: {type: Type.STRING},
+            },
+            suggestions: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: {type: Type.STRING},
+                  suggestedCategory: {type: Type.STRING},
+                  difficulty: {type: Type.STRING},
+                  estimatedTime: {type: Type.STRING},
+                  summary: {type: Type.STRING},
+                  extraMaterials: {
+                    type: Type.ARRAY,
+                    items: {type: Type.STRING},
                   },
-                  required: [
-                    'title',
-                    'suggestedCategory',
-                    'difficulty',
-                    'estimatedTime',
-                    'summary',
-                    'extraMaterials',
-                    'steps',
-                  ],
+                  steps: {
+                    type: Type.ARRAY,
+                    items: {type: Type.STRING},
+                  },
                 },
+                required: [
+                  'title',
+                  'suggestedCategory',
+                  'difficulty',
+                  'estimatedTime',
+                  'summary',
+                  'extraMaterials',
+                  'steps',
+                ],
               },
             },
-            required: [
-              'suggestedTitle',
-              'identifiedMaterial',
-              'preparationTip',
-              'steps',
-              'suggestions',
-            ],
           },
+          required: [
+            'suggestedTitle',
+            'identifiedMaterial',
+            'preparationTip',
+            'steps',
+            'suggestions',
+          ],
         },
       });
 
-      const rawText = (response.text ?? '{}').trim();
-      const parsed = JSON.parse(rawText) as {
+      const parsed = parseJsonPayload<{
         suggestedTitle?: string;
         identifiedMaterial?: string;
         preparationTip?: string;
@@ -230,7 +307,7 @@ async function startServer() {
           extraMaterials?: string[];
           steps?: string[];
         }>;
-      };
+      }>(response.text);
 
       const validCategories = new Set([
         'artesanato',
@@ -240,7 +317,12 @@ async function startServer() {
       ]);
 
       const suggestions = (parsed.suggestions || []).slice(0, 3).map((s) => ({
-        ...s,
+        title: s.title || 'Projeto criativo',
+        difficulty: s.difficulty || 'Fácil',
+        estimatedTime: s.estimatedTime || '25 min',
+        summary: s.summary || '',
+        extraMaterials: Array.isArray(s.extraMaterials) ? s.extraMaterials : [],
+        steps: Array.isArray(s.steps) ? s.steps : [],
         suggestedCategory: validCategories.has(s.suggestedCategory || '')
           ? (s.suggestedCategory as
               | 'artesanato'
@@ -261,14 +343,16 @@ async function startServer() {
           : suggestions[0]?.steps || [];
 
       return res.json({
-        suggestedTitle: parsed.suggestedTitle || '',
+        suggestedTitle: parsed.suggestedTitle || suggestions[0]?.title || '',
         identifiedMaterial: parsed.identifiedMaterial || material,
         preparationTip: parsed.preparationTip || '',
         steps,
         suggestions,
       });
     } catch (err) {
-      return res.status(500).json({error: formatGeminiError(err)});
+      return res
+        .status(getGeminiHttpStatus(err))
+        .json({error: formatGeminiError(err)});
     }
   });
 
@@ -295,8 +379,7 @@ async function startServer() {
         });
       }
 
-      const response = await generateContentWithRetry({
-        model: 'gemini-4-hydrogen',
+      const response = await generateWithModelFallback({
         contents: {
           parts: [
             {
@@ -320,27 +403,22 @@ async function startServer() {
             },
           ],
         },
-        config: {
-          responseMimeType: 'application/json',
-          thinkingConfig: {thinkingLevel: ThinkingLevel.LOW},
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              catalogId: {type: Type.STRING},
-              detectedLabel: {type: Type.STRING},
-              quickTip: {type: Type.STRING},
-            },
-            required: ['catalogId', 'detectedLabel', 'quickTip'],
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            catalogId: {type: Type.STRING},
+            detectedLabel: {type: Type.STRING},
+            quickTip: {type: Type.STRING},
           },
+          required: ['catalogId', 'detectedLabel', 'quickTip'],
         },
       });
 
-      const rawText = (response.text ?? '{}').trim();
-      const parsed = JSON.parse(rawText) as {
+      const parsed = parseJsonPayload<{
         catalogId?: string;
         detectedLabel?: string;
         quickTip?: string;
-      };
+      }>(response.text);
 
       const validIds = new Set([
         'tr-pet',
@@ -359,7 +437,9 @@ async function startServer() {
         quickTip: parsed.quickTip || '',
       });
     } catch (err) {
-      return res.status(500).json({error: formatGeminiError(err)});
+      return res
+        .status(getGeminiHttpStatus(err))
+        .json({error: formatGeminiError(err)});
     }
   });
 
