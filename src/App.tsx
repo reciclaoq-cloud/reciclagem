@@ -1642,13 +1642,6 @@ export default function App() {
             >
               Antes e Depois
             </button>
-            <button
-              type="button"
-              onClick={() => openDropOffMap(MaterialType.ALL)}
-              className="hover:text-[#0b1c30]"
-            >
-              Mapa de Ecopontos
-            </button>
           </div>
         </footer>
       </main>
