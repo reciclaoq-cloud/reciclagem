@@ -44,7 +44,7 @@ import {
 import {CategoryPhotoUploadModal} from './components/CategoryPhotoUploadModal';
 import {BeforeAfterModal} from './components/BeforeAfterModal';
 import {RawMaterialAiTab} from './components/RawMaterialAiTab';
-import {isSupabaseConfigured} from './lib/supabase';
+import {isSupabaseConfigured, supabase} from './lib/supabase';
 import {
   deleteSupabaseBeforeAfter,
   deleteSupabaseCategoryPhoto,
@@ -142,7 +142,7 @@ export default function App() {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [authModalState, setAuthModalState] = useState<{
     isOpen: boolean;
-    mode: 'login' | 'register';
+    mode: 'login' | 'register' | 'forgot' | 'reset';
     message?: string;
   }>({isOpen: false, mode: 'login'});
   const [pendingAction, setPendingAction] = useState<
@@ -151,6 +151,46 @@ export default function App() {
     | {type: 'upload'; craft: CraftSubcategory}
     | {type: 'beforeAfter'}
   >(null);
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    const hash = window.location.hash || '';
+    const search = window.location.search || '';
+    if (
+      (hash.includes('error_code=otp_expired') ||
+        hash.includes('error=access_denied') ||
+        search.includes('error_code=otp_expired')) &&
+      (hash.includes('recovery') ||
+        hash.includes('otp_expired') ||
+        search.includes('otp_expired'))
+    ) {
+      setAuthModalState({
+        isOpen: true,
+        mode: 'forgot',
+        message:
+          'O link de recuperação expirou ou já foi utilizado. Informe seu e-mail para gerar um novo link.',
+      });
+      window.history.replaceState(null, '', window.location.pathname);
+    }
+
+    const {data: authListener} = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setAuthModalState({
+          isOpen: true,
+          mode: 'reset',
+          message: 'Defina sua nova senha abaixo para acessar sua conta.',
+        });
+        if (window.location.hash || window.location.search.includes('code=')) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {

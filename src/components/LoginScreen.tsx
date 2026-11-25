@@ -1,16 +1,24 @@
 import React, {useEffect, useState} from 'react';
 import {
+  ArrowLeft,
   ArrowRight,
   Eye,
   EyeOff,
+  KeyRound,
   Leaf,
+  MailCheck,
   Palette,
   Recycle,
   X,
 } from 'lucide-react';
 import {BrandLogo} from './BrandLogo';
 import {isSupabaseConfigured, supabaseConfigMessage} from '../lib/supabase';
-import {signInSupabase, signUpSupabase} from '../services/ecoRepository';
+import {
+  requestPasswordResetSupabase,
+  signInSupabase,
+  signUpSupabase,
+  updateSupabasePassword,
+} from '../services/ecoRepository';
 
 export interface AuthUser {
   id?: string;
@@ -24,7 +32,7 @@ export interface AuthUser {
 interface LoginScreenProps {
   onLogin: (user: AuthUser) => void;
   onContinueAsGuest?: () => void;
-  initialMode?: 'login' | 'register';
+  initialMode?: 'login' | 'register' | 'forgot' | 'reset';
   contextMessage?: string;
   isModal?: boolean;
 }
@@ -42,9 +50,12 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
   contextMessage,
   isModal = false,
 }) => {
-  const [mode, setMode] = useState<'login' | 'register'>(initialMode);
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'reset'>(
+    initialMode,
+  );
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [name, setName] = useState('');
   const [city, setCity] = useState('');
   const [stateUf, setStateUf] = useState('SP');
@@ -165,18 +176,94 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     }
   };
 
+  const handleForgotSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setErrorMsg('');
+    setInfoMsg('');
+
+    if (!isSupabaseConfigured) {
+      setErrorMsg(
+        supabaseConfigMessage ||
+          'Supabase não está configurado. Defina VITE_SUPABASE_URL e VITE_SUPABASE_ANON_KEY.',
+      );
+      return;
+    }
+
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes('@')) {
+      setErrorMsg('Informe o e-mail cadastrado para receber o link de recuperação.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const {ok, error} = await requestPasswordResetSupabase(cleanEmail);
+      if (!ok) {
+        setErrorMsg(error || 'Não foi possível enviar o e-mail de recuperação.');
+        return;
+      }
+      setInfoMsg(
+        `Enviamos um link de redefinição de senha para ${cleanEmail}. Confira sua caixa de entrada e a pasta de spam.`,
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setErrorMsg('');
+    setInfoMsg('');
+
+    if (password.trim().length < 6) {
+      setErrorMsg('A nova senha deve ter pelo menos 6 caracteres.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setErrorMsg('As duas senhas precisam ser iguais.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const {user, error} = await updateSupabasePassword(password);
+      if (error || !user) {
+        setErrorMsg(
+          error ||
+            'Link de recuperação expirado ou inválido. Solicite um novo link.',
+        );
+        return;
+      }
+      setPassword('');
+      setConfirmPassword('');
+      onLogin({...user, isRealUser: true});
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const authCard = (
     <div className="eco-card rounded-3xl p-6 sm:p-8 w-full max-w-md mx-auto bg-white">
       <div className="flex items-start justify-between gap-2 mb-5">
         <div>
           <h2 className="text-xl font-extrabold tracking-tight text-[#0b1c30]">
-            {mode === 'login' ? 'Acesse sua conta' : 'Crie seu perfil'}
+            {mode === 'login'
+              ? 'Acesse sua conta'
+              : mode === 'register'
+                ? 'Crie seu perfil'
+                : mode === 'forgot'
+                  ? 'Recuperar senha'
+                  : 'Definir nova senha'}
           </h2>
           <p className="mt-0.5 text-xs text-[#6d7a72]">
             {contextMessage ||
               (mode === 'login'
                 ? 'Entre na rede ReciclaOQ para publicar e acompanhar seu impacto.'
-                : 'Junte-se à comunidade de sustentabilidade e arte com sucata.')}
+                : mode === 'register'
+                  ? 'Junte-se à comunidade de sustentabilidade e arte com sucata.'
+                  : mode === 'forgot'
+                    ? 'Informe seu e-mail cadastrado para receber o link de redefinição.'
+                    : 'Escolha uma nova senha com pelo menos 6 caracteres para acessar sua conta.')}
           </p>
         </div>
 
@@ -193,46 +280,48 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
       </div>
 
       {/* Mode Switcher */}
-      <div
-        className="grid grid-cols-2 gap-1.5 rounded-full bg-[#eff4ff] p-1 mb-5"
-        role="tablist"
-        aria-label="Modo de acesso"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === 'login'}
-          onClick={() => {
-            setMode('login');
-            setErrorMsg('');
-            setInfoMsg('');
-          }}
-          className={`min-h-[40px] rounded-full text-xs font-bold transition-colors ${
-            mode === 'login'
-              ? 'bg-[#006948] text-white shadow-xs'
-              : 'text-[#3d4a42] hover:text-[#0b1c30]'
-          }`}
+      {(mode === 'login' || mode === 'register') && (
+        <div
+          className="grid grid-cols-2 gap-1.5 rounded-full bg-[#eff4ff] p-1 mb-5"
+          role="tablist"
+          aria-label="Modo de acesso"
         >
-          Entrar
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={mode === 'register'}
-          onClick={() => {
-            setMode('register');
-            setErrorMsg('');
-            setInfoMsg('');
-          }}
-          className={`min-h-[40px] rounded-full text-xs font-bold transition-colors ${
-            mode === 'register'
-              ? 'bg-[#006398] text-white shadow-xs'
-              : 'text-[#3d4a42] hover:text-[#0b1c30]'
-          }`}
-        >
-          Criar conta
-        </button>
-      </div>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'login'}
+            onClick={() => {
+              setMode('login');
+              setErrorMsg('');
+              setInfoMsg('');
+            }}
+            className={`min-h-[40px] rounded-full text-xs font-bold transition-colors ${
+              mode === 'login'
+                ? 'bg-[#006948] text-white shadow-xs'
+                : 'text-[#3d4a42] hover:text-[#0b1c30]'
+            }`}
+          >
+            Entrar
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={mode === 'register'}
+            onClick={() => {
+              setMode('register');
+              setErrorMsg('');
+              setInfoMsg('');
+            }}
+            className={`min-h-[40px] rounded-full text-xs font-bold transition-colors ${
+              mode === 'register'
+                ? 'bg-[#006398] text-white shadow-xs'
+                : 'text-[#3d4a42] hover:text-[#0b1c30]'
+            }`}
+          >
+            Criar conta
+          </button>
+        </div>
+      )}
 
       {mode === 'login' ? (
         <form onSubmit={handleLoginSubmit} className="space-y-4">
@@ -255,12 +344,25 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           </div>
 
           <div>
-            <label
-              htmlFor="login-password"
-              className="block text-xs font-semibold text-[#3d4a42] mb-1.5"
-            >
-              Senha
-            </label>
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <label
+                htmlFor="login-password"
+                className="block text-xs font-semibold text-[#3d4a42]"
+              >
+                Senha
+              </label>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('forgot');
+                  setErrorMsg('');
+                  setInfoMsg('');
+                }}
+                className="text-xs font-bold text-[#006398] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0284c7]"
+              >
+                Esqueci minha senha
+              </button>
+            </div>
             <div className="relative">
               <input
                 id="login-password"
@@ -305,6 +407,148 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
           >
             <span>{isSubmitting ? 'Entrando...' : 'Entrar na rede'}</span>
             <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </form>
+      ) : mode === 'forgot' ? (
+        <form onSubmit={handleForgotSubmit} className="space-y-4">
+          <div>
+            <label
+              htmlFor="forgot-email"
+              className="block text-xs font-semibold text-[#3d4a42] mb-1.5"
+            >
+              E-mail da conta
+            </label>
+            <input
+              id="forgot-email"
+              type="email"
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="voce@exemplo.com"
+              className="min-h-[44px] w-full rounded-full border border-[#e2e8f0] bg-[#f8fafc] px-4 text-sm text-[#0b1c30] placeholder:text-[#6d7a72] focus:border-[#0ea5e9] focus:bg-white focus:outline-none focus:ring-3 focus:ring-[#0ea5e9]/15"
+            />
+          </div>
+
+          {errorMsg && (
+            <p className="text-xs font-semibold text-[#ba1a1a]" role="alert">
+              {errorMsg}
+            </p>
+          )}
+
+          {infoMsg && (
+            <div
+              className="rounded-2xl bg-[#e6f7f1] border border-[#006948]/20 p-3 text-xs font-semibold text-[#006948] flex items-start gap-2"
+              role="status"
+            >
+              <MailCheck className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+              <span>{infoMsg}</span>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="flex w-full min-h-[46px] items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#006398] to-[#0284c7] px-6 text-sm font-bold text-white shadow-[0_6px_18px_rgba(2,132,199,0.25)] transition-transform duration-150 active:scale-[0.98] disabled:opacity-60"
+          >
+            <span>
+              {isSubmitting ? 'Enviando link...' : 'Enviar link de recuperação'}
+            </span>
+            <ArrowRight className="h-4 w-4" aria-hidden="true" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMode('login');
+              setErrorMsg('');
+              setInfoMsg('');
+            }}
+            className="flex w-full min-h-[40px] items-center justify-center gap-1.5 text-xs font-bold text-[#006398] hover:underline"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Voltar para o login</span>
+          </button>
+        </form>
+      ) : mode === 'reset' ? (
+        <form onSubmit={handleResetPasswordSubmit} className="space-y-4">
+          <div>
+            <label
+              htmlFor="reset-password"
+              className="block text-xs font-semibold text-[#3d4a42] mb-1.5"
+            >
+              Nova senha (mín. 6 caracteres)
+            </label>
+            <div className="relative">
+              <input
+                id="reset-password"
+                type={showPassword ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Digite a nova senha"
+                className="min-h-[44px] w-full rounded-full border border-[#e2e8f0] bg-[#f8fafc] pl-4 pr-12 text-sm text-[#0b1c30] focus:border-[#0ea5e9] focus:bg-white focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex h-9 w-9 items-center justify-center rounded-full text-[#6d7a72] hover:bg-[#eff4ff]"
+              >
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Eye className="h-4 w-4" aria-hidden="true" />
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label
+              htmlFor="reset-confirm-password"
+              className="block text-xs font-semibold text-[#3d4a42] mb-1.5"
+            >
+              Confirmar nova senha
+            </label>
+            <input
+              id="reset-confirm-password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Repita a nova senha"
+              className="min-h-[44px] w-full rounded-full border border-[#e2e8f0] bg-[#f8fafc] px-4 text-sm text-[#0b1c30] focus:border-[#0ea5e9] focus:bg-white focus:outline-none"
+            />
+          </div>
+
+          {errorMsg && (
+            <p className="text-xs font-semibold text-[#ba1a1a]" role="alert">
+              {errorMsg}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="eco-cta-gradient flex w-full min-h-[46px] items-center justify-center gap-2 rounded-full px-6 text-sm font-bold text-white transition-transform duration-150 active:scale-[0.98] disabled:opacity-60"
+          >
+            <KeyRound className="h-4 w-4" aria-hidden="true" />
+            <span>
+              {isSubmitting ? 'Atualizando senha...' : 'Salvar nova senha e entrar'}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setMode('login');
+              setErrorMsg('');
+              setInfoMsg('');
+            }}
+            className="flex w-full min-h-[40px] items-center justify-center gap-1.5 text-xs font-bold text-[#006398] hover:underline"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            <span>Voltar para o login</span>
           </button>
         </form>
       ) : (

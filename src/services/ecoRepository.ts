@@ -270,6 +270,112 @@ export async function signOutSupabase(): Promise<void> {
   }
 }
 
+export async function requestPasswordResetSupabase(
+  email: string,
+): Promise<{ok: boolean; error: string | null}> {
+  if (!supabase) {
+    return {
+      ok: false,
+      error: 'Configure o Supabase para enviar e-mails de recuperação.',
+    };
+  }
+  try {
+    const redirectTo =
+      typeof window !== 'undefined'
+        ? `${window.location.origin}${window.location.pathname}`
+        : undefined;
+    const {error} = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo,
+    });
+    if (error) {
+      const lower = error.message.toLowerCase();
+      if (lower.includes('rate limit') || lower.includes('too many')) {
+        return {
+          ok: false,
+          error:
+            'Muitas solicitações seguidas. Aguarde alguns instantes antes de pedir outro link.',
+        };
+      }
+      if (lower.includes('invalid') && lower.includes('email')) {
+        return {ok: false, error: 'Informe um endereço de e-mail válido.'};
+      }
+      return {
+        ok: false,
+        error: `Não foi possível enviar o e-mail de recuperação: ${error.message}`,
+      };
+    }
+    return {ok: true, error: null};
+  } catch (err) {
+    return {
+      ok: false,
+      error:
+        err instanceof Error
+          ? err.message
+          : 'Erro ao solicitar recuperação de senha no Supabase.',
+    };
+  }
+}
+
+export async function updateSupabasePassword(
+  newPassword: string,
+): Promise<{user: RepoUser | null; error: string | null}> {
+  if (!supabase) {
+    return {user: null, error: 'Sessão Supabase indisponível.'};
+  }
+  try {
+    const {data, error} = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+    if (error || !data.user) {
+      const msg = error?.message || 'Não foi possível redefinir a senha.';
+      if (msg.toLowerCase().includes('different from the old password')) {
+        return {
+          user: null,
+          error: 'A nova senha precisa ser diferente da senha anterior.',
+        };
+      }
+      return {user: null, error: msg};
+    }
+
+    const {data: profile} = await supabase
+      .from('profiles')
+      .select('name, neighborhood, initials')
+      .eq('id', data.user.id)
+      .maybeSingle();
+
+    const email = data.user.email || '';
+    const metaName =
+      (data.user.user_metadata?.name as string | undefined) ||
+      email.split('@')[0] ||
+      'Membro';
+    const name = profile?.name || metaName;
+    const neighborhood =
+      profile?.neighborhood ||
+      (data.user.user_metadata?.neighborhood as string | undefined) ||
+      'Santo André, SP';
+
+    return {
+      user: {
+        id: data.user.id,
+        isRealUser: true,
+        name,
+        email,
+        neighborhood,
+        initials: profile?.initials || buildInitials(name),
+      },
+      error: null,
+    };
+  } catch (err) {
+    return {
+      user: null,
+      error:
+        err instanceof Error
+          ? err.message
+          : 'Erro ao atualizar a senha no Supabase.',
+    };
+  }
+}
+
 export async function updateSupabaseProfile(
   user: RepoUser,
 ): Promise<{ok: boolean; error?: string}> {
