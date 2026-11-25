@@ -131,16 +131,10 @@ async function generateWithModelFallback(params: {
 
 function getGeminiHttpStatus(err: unknown): number {
   const raw = err instanceof Error ? err.message : String(err || '');
-  if (
-    raw.includes('503') ||
-    raw.includes('UNAVAILABLE') ||
-    raw.includes('high demand')
-  ) {
-    return 503;
-  }
   if (raw.includes('429') || raw.includes('RESOURCE_EXHAUSTED')) {
     return 429;
   }
+  // Return 500 instead of 502/503/504 so upstream reverse proxies pass JSON errors through cleanly
   return 500;
 }
 
@@ -468,7 +462,7 @@ async function startServer() {
   if (isProduction) {
     const distDir = path.resolve(__dirname, 'dist');
     app.use(express.static(distDir));
-    app.get('/{*splat}', (_req, res) => {
+    app.get('*', (_req, res) => {
       res.sendFile(path.join(distDir, 'index.html'));
     });
   } else {

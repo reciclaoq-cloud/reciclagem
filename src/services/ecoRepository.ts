@@ -722,19 +722,34 @@ async function safeReadJsonResponse<T>(
     }
   }
 
+  const lower = trimmed.toLowerCase();
+
   if (!response.ok) {
     if (parsed?.error) {
       throw new Error(parsed.error);
     }
-    if (trimmed.toLowerCase().includes('page could not be found')) {
+    if (
+      lower.includes('page could not be found') ||
+      lower.includes('page not found')
+    ) {
       throw new Error(
         'O servidor de IA não está acessível neste endereço no momento. Recarregue a página ou tente no ambiente principal do aplicativo.',
+      );
+    }
+    if (lower.includes('starting server')) {
+      throw new Error(
+        'O servidor de IA está iniciando. Aguarde alguns segundos e clique em Tentar novamente.',
       );
     }
     throw new Error(fallbackError);
   }
 
   if (!parsed) {
+    if (lower.includes('starting server')) {
+      throw new Error(
+        'O servidor de IA está iniciando. Aguarde alguns segundos e clique em Tentar novamente.',
+      );
+    }
     throw new Error(
       'Resposta inválida do servidor de IA. Tente novamente em alguns segundos.',
     );
