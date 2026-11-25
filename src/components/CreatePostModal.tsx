@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {ImagePlus, X} from 'lucide-react';
+import {ImagePlus, Sparkles, X} from 'lucide-react';
 import {
   CraftSubcategory,
   EcoPost,
@@ -9,6 +9,7 @@ import {
 } from '../types/eco';
 import {CRAFT_CATEGORIES} from './CreativeCategoriesStrip';
 import {compressImageFile} from '../utils/imageUpload';
+import {explainCraftWithAI} from '../services/ecoRepository';
 
 interface CreatePostModalProps {
   isOpen: boolean;
@@ -87,6 +88,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     defaultNeighborhood || 'Santo André, SP',
   );
   const [errorMsg, setErrorMsg] = useState('');
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const beforeFileInputRef = useRef<HTMLInputElement>(null);
@@ -141,14 +143,50 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     }
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
-    if (!title.trim() || !summary.trim()) {
+  const handleGenerateExplanationWithAI = async () => {
+    if (!customImageUrl && !beforeImageUrl && !title.trim() && !summary.trim()) {
       setErrorMsg(
-        'Preencha o título e a descrição prática da sua dica ou projeto.',
+        'Envie uma foto ou preencha o título antes de gerar a explicação com a IA.',
       );
       return;
     }
+    setIsGeneratingAi(true);
+    setErrorMsg('');
+    try {
+      const result = await explainCraftWithAI({
+        imageDataUrl: customImageUrl || undefined,
+        beforeImageUrl: beforeImageUrl || undefined,
+        title: title.trim(),
+        material,
+        craftCategory:
+          category === PostCategory.SCRAP_ART ? craftSubcategory : 'artesanato',
+        notes: summary.trim(),
+      });
+      if (!title.trim() && result.suggestedTitle) {
+        setTitle(result.suggestedTitle);
+      }
+      if (result.explanation) {
+        setSummary(result.explanation);
+      }
+      if (result.materials.length > 0) {
+        setMaterialsText(result.materials.join('\n'));
+      }
+      if (result.steps.length > 0) {
+        setStepsText(result.steps.join('\n'));
+      }
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error
+          ? err.message
+          : 'Não foi possível gerar a explicação com IA.',
+      );
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
 
     const parsedMaterials = materialsText
       .split('\n')
@@ -159,6 +197,20 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
       .split('\n')
       .map((line) => line.trim())
       .filter(Boolean);
+
+    if (!title.trim() || !summary.trim()) {
+      setErrorMsg(
+        'Preencha o título e a explicação de como funciona/fazer (ou gere com IA).',
+      );
+      return;
+    }
+
+    if (parsedSteps.length === 0) {
+      setErrorMsg(
+        'Adicione o passo a passo de como fazer (escreva ou clique em "Gerar explicação com IA").',
+      );
+      return;
+    }
 
     const parsedKg = Math.max(0.05, Number.parseFloat(wasteAvoidedKg) || 0.4);
     const cleanName = authorName.trim() || 'Você';
@@ -391,18 +443,33 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
           </div>
 
           <div>
-            <label
-              htmlFor="post-summary"
-              className="block text-xs font-semibold text-[#3d4a42] mb-1.5"
-            >
-              Como funciona na prática
-            </label>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+              <label
+                htmlFor="post-summary"
+                className="block text-xs font-semibold text-[#3d4a42]"
+              >
+                Explicação de como fazer na prática (obrigatória)
+              </label>
+              <button
+                type="button"
+                disabled={isGeneratingAi}
+                onClick={() => void handleGenerateExplanationWithAI()}
+                className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full bg-[#e6f7f1] border border-[#006948]/30 px-3 text-xs font-bold text-[#006948] hover:bg-[#d1fae5] disabled:opacity-60"
+              >
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>
+                  {isGeneratingAi
+                    ? 'Gerando com IA...'
+                    : 'Gerar explicação e passo a passo com IA'}
+                </span>
+              </button>
+            </div>
             <textarea
               id="post-summary"
               rows={3}
               value={summary}
               onChange={(e) => setSummary(e.target.value)}
-              placeholder="Explique o ganho ambiental, o truque de limpeza ou como transformou a sucata..."
+              placeholder="Explique o que foi usado e como fazer ou clique em Gerar com IA..."
               className="w-full rounded-2xl border border-[#e2e8f0] bg-[#f8fafc] p-3.5 text-sm text-[#0b1c30] focus:border-[#0ea5e9] focus:bg-white focus:outline-none focus:ring-3 focus:ring-[#0ea5e9]/15"
             />
           </div>
@@ -430,7 +497,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 htmlFor="post-steps"
                 className="block text-xs font-semibold text-[#3d4a42] mb-1.5"
               >
-                Passo a passo (um por linha)
+                Passo a passo de como fazer (obrigatório)
               </label>
               <textarea
                 id="post-steps"

@@ -91,6 +91,8 @@ export interface CategoryPhotoEntry {
   craftCategory: CraftSubcategory;
   material: Exclude<MaterialType, MaterialType.ALL>;
   title: string;
+  description?: string;
+  steps?: string[];
   imageUrl: string;
   createdAt: string;
 }

@@ -437,6 +437,109 @@ async function startServer() {
     }
   });
 
+  app.post('/api/explain-craft-ai', async (req, res) => {
+    try {
+      if (!process.env.GEMINI_API_KEY) {
+        return res.status(500).json({
+          error:
+            'Chave da API Gemini não configurada no servidor (GEMINI_API_KEY).',
+        });
+      }
+
+      const {
+        imageDataUrl,
+        beforeImageUrl,
+        title = '',
+        material = 'Plástico PET',
+        craftCategory = 'artesanato',
+        notes = '',
+      } = req.body as {
+        imageDataUrl?: string;
+        beforeImageUrl?: string;
+        title?: string;
+        material?: string;
+        craftCategory?: string;
+        notes?: string;
+      };
+
+      const mainImg = imageDataUrl ? parseDataUrl(imageDataUrl) : null;
+      const beforeImg = beforeImageUrl ? parseDataUrl(beforeImageUrl) : null;
+
+      if (!mainImg && !beforeImg && !title.trim() && !notes.trim()) {
+        return res.status(400).json({
+          error:
+            'Envie uma foto ou preencha o título para a IA gerar a explicação de como fazer.',
+        });
+      }
+
+      const categoryLabel = CRAFT_LABELS[craftCategory] || 'Arte com Sucata';
+      const prompt = [
+        'Você está ajudando um usuário a publicar no ReciclaOQ a explicação prática de como fazer um projeto ou peça de sustentabilidade/reuso.',
+        `Categoria: ${categoryLabel}.`,
+        `Material principal: ${material}.`,
+        title.trim() ? `Título informado: ${title.trim()}.` : '',
+        notes.trim() ? `Observações do autor: ${notes.trim()}.` : '',
+        '',
+        'Responda em português do Brasil (pt-BR) com:',
+        '1. suggestedTitle: título curto e direto para a criação (mantenha ou melhore o título informado).',
+        '2. explanation: explicação clara em 2 a 3 frases sobre o que é a peça/prática, qual material foi reaproveitado e o resumo de como foi feita.',
+        '3. materials: lista com 3 a 6 materiais necessários (itens curtos).',
+        '4. steps: lista com 4 a 6 passos claros e seguros de como fazer, em ordem lógica (sem numeração no início do texto).',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      const parts: Array<
+        {inlineData: {mimeType: string; data: string}} | {text: string}
+      > = [];
+      if (mainImg) {
+        parts.push({
+          inlineData: {mimeType: mainImg.mimeType, data: mainImg.base64Data},
+        });
+      }
+      if (beforeImg) {
+        parts.push({
+          inlineData: {mimeType: beforeImg.mimeType, data: beforeImg.base64Data},
+        });
+      }
+      parts.push({text: prompt});
+
+      const response = await generateWithModelFallback({
+        contents: {parts},
+        systemInstruction:
+          'Você é um especialista em reciclagem doméstica, zero desperdício e arte com sucata. Gere explicações didáticas, objetivas e seguras em português do Brasil.',
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            suggestedTitle: {type: Type.STRING},
+            explanation: {type: Type.STRING},
+            materials: {type: Type.ARRAY, items: {type: Type.STRING}},
+            steps: {type: Type.ARRAY, items: {type: Type.STRING}},
+          },
+          required: ['suggestedTitle', 'explanation', 'materials', 'steps'],
+        },
+      });
+
+      const parsed = parseJsonPayload<{
+        suggestedTitle?: string;
+        explanation?: string;
+        materials?: string[];
+        steps?: string[];
+      }>(response.text);
+
+      return res.json({
+        suggestedTitle: parsed.suggestedTitle || title.trim(),
+        explanation: parsed.explanation || '',
+        materials: Array.isArray(parsed.materials) ? parsed.materials : [],
+        steps: Array.isArray(parsed.steps) ? parsed.steps : [],
+      });
+    } catch (err) {
+      return res
+        .status(getGeminiHttpStatus(err))
+        .json({error: formatGeminiError(err)});
+    }
+  });
+
   app.use('/api', (_req, res) => {
     res.status(404).json({error: 'Rota da API não encontrada.'});
   });

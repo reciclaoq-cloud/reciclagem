@@ -67,9 +67,17 @@ create table if not exists public.category_photos (
   craft_category text not null,
   material text not null,
   title text not null,
+  description text not null default '',
+  steps jsonb not null default '[]'::jsonb,
   image_url text not null,
   created_at timestamptz not null default now()
 );
+
+alter table public.category_photos
+  add column if not exists description text not null default '';
+
+alter table public.category_photos
+  add column if not exists steps jsonb not null default '[]'::jsonb;
 
 -- 5. Tabela Banco de Dados "Antes e Depois"
 create table if not exists public.before_after_entries (

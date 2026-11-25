@@ -8,9 +8,11 @@ import {
   Send,
   Trash2,
   X,
+  ZoomIn,
 } from 'lucide-react';
 import {BeforeAfterEntry, EcoPost} from '../types/eco';
 import {EcoIllustration} from './EcoIllustrations';
+import {ZoomModalData} from './ImageZoomModal';
 
 interface PostDetailModalProps {
   post: EcoPost | null;
@@ -22,6 +24,7 @@ interface PostDetailModalProps {
   onToggleSave: (postId: string) => void;
   onAddComment: (postId: string, content: string) => void;
   onDeletePost?: (postId: string) => void;
+  onZoomPhoto?: (data: ZoomModalData) => void;
 }
 
 export const PostDetailModal: React.FC<PostDetailModalProps> = ({
@@ -34,6 +37,7 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   onToggleSave,
   onAddComment,
   onDeletePost,
+  onZoomPhoto,
 }) => {
   const [commentText, setCommentText] = useState('');
   const [checkedMaterials, setCheckedMaterials] = useState<number[]>([]);
@@ -45,6 +49,29 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
   const beforeImg = post.beforeImageUrl || linkedBeforeAfter?.beforeImageUrl;
   const afterImg = post.customImageUrl || linkedBeforeAfter?.afterImageUrl;
   const hasBeforeAfterPair = Boolean(beforeImg && afterImg);
+  const singleUploadedImg = !hasBeforeAfterPair
+    ? post.customImageUrl || beforeImg
+    : undefined;
+
+  const openPhotoZoom = (
+    primaryUrl: string,
+    primaryLabel?: string,
+    secondaryUrl?: string,
+    secondaryLabel?: string,
+  ) => {
+    onZoomPhoto?.({
+      imageUrl: primaryUrl,
+      primaryLabel,
+      secondaryImageUrl: secondaryUrl,
+      secondaryLabel,
+      title: post.title,
+      subtitle: post.material,
+      authorLine: `Por ${post.authorName} · ${post.authorNeighborhood}`,
+      explanation: post.summary,
+      materials: post.materialsNeeded,
+      steps: post.steps,
+    });
+  };
 
   const handleCopyTip = async () => {
     const text = [
@@ -134,45 +161,88 @@ export const PostDetailModal: React.FC<PostDetailModalProps> = ({
         </p>
 
         <div className="mt-4">
-          {hasBeforeAfterPair ? (
+          {hasBeforeAfterPair && beforeImg && afterImg ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="overflow-hidden rounded-2xl border border-[#006398]/25 bg-[#f1f5f9]">
-                <div className="bg-[#e0f2fe] px-3 py-1.5 text-[11px] font-extrabold text-[#006398]">
-                  1. ANTES · Material / Sucata
+              <button
+                type="button"
+                onClick={() =>
+                  openPhotoZoom(
+                    beforeImg,
+                    '1. Antes · Material',
+                    afterImg,
+                    '2. Depois · Peça pronta',
+                  )
+                }
+                className="group overflow-hidden rounded-2xl border border-[#006398]/25 bg-[#f1f5f9] text-left"
+              >
+                <div className="flex items-center justify-between bg-[#e0f2fe] px-3 py-1.5 text-[11px] font-extrabold text-[#006398]">
+                  <span>1. ANTES · Material / Sucata</span>
+                  <span className="inline-flex items-center gap-1 text-[10px]">
+                    <ZoomIn className="h-3 w-3" aria-hidden="true" />
+                    <span>Zoom</span>
+                  </span>
                 </div>
                 <div className="flex h-64 items-center justify-center p-2">
                   <img
                     src={beforeImg}
                     alt={`Antes: ${post.title}`}
                     referrerPolicy="no-referrer"
-                    className="max-h-full max-w-full object-contain rounded-lg"
+                    className="max-h-full max-w-full object-contain rounded-lg transition-transform duration-200 group-hover:scale-[1.03]"
                   />
                 </div>
-              </div>
-              <div className="overflow-hidden rounded-2xl border border-[#006948]/25 bg-[#f1f5f9]">
-                <div className="bg-[#d1fae5] px-3 py-1.5 text-[11px] font-extrabold text-[#006948]">
-                  2. DEPOIS · Peça pronta
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  openPhotoZoom(
+                    afterImg,
+                    '2. Depois · Peça pronta',
+                    beforeImg,
+                    '1. Antes · Material',
+                  )
+                }
+                className="group overflow-hidden rounded-2xl border border-[#006948]/25 bg-[#f1f5f9] text-left"
+              >
+                <div className="flex items-center justify-between bg-[#d1fae5] px-3 py-1.5 text-[11px] font-extrabold text-[#006948]">
+                  <span>2. DEPOIS · Peça pronta</span>
+                  <span className="inline-flex items-center gap-1 text-[10px]">
+                    <ZoomIn className="h-3 w-3" aria-hidden="true" />
+                    <span>Zoom</span>
+                  </span>
                 </div>
                 <div className="flex h-64 items-center justify-center p-2">
                   <img
                     src={afterImg}
                     alt={`Depois: ${post.title}`}
                     referrerPolicy="no-referrer"
-                    className="max-h-full max-w-full object-contain rounded-lg"
+                    className="max-h-full max-w-full object-contain rounded-lg transition-transform duration-200 group-hover:scale-[1.03]"
                   />
                 </div>
-              </div>
+              </button>
             </div>
+          ) : singleUploadedImg ? (
+            <button
+              type="button"
+              onClick={() => openPhotoZoom(singleUploadedImg)}
+              className="group relative block w-full text-left rounded-2xl"
+              aria-label={`Ampliar foto de ${post.title}`}
+            >
+              <EcoIllustration
+                theme={post.illustration}
+                customImageUrl={singleUploadedImg}
+                alt={post.title}
+                className="w-full"
+              />
+              <span className="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-full bg-[#0b1c30]/75 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+                <ZoomIn className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>Ampliar foto</span>
+              </span>
+            </button>
           ) : (
             <EcoIllustration
               theme={post.illustration}
-              customImageUrl={post.customImageUrl || beforeImg}
               alt={post.title}
-              className={
-                post.customImageUrl || beforeImg
-                  ? 'w-full'
-                  : 'h-56 sm:h-64 w-full'
-              }
+              className="h-56 sm:h-64 w-full"
             />
           )}
         </div>

@@ -65,6 +65,8 @@ interface DbCategoryPhotoRow {
   craft_category: string;
   material: string;
   title: string;
+  description?: string | null;
+  steps?: string[] | null;
   image_url: string;
   created_at: string;
 }
@@ -601,6 +603,8 @@ export async function fetchSupabaseCategoryPhotos(): Promise<
       craftCategory: row.craft_category as CraftSubcategory,
       material: row.material as Exclude<MaterialType, MaterialType.ALL>,
       title: row.title,
+      description: row.description || undefined,
+      steps: Array.isArray(row.steps) ? row.steps : undefined,
       imageUrl: row.image_url,
       createdAt: formatRelativeDate(row.created_at),
     }));
@@ -617,7 +621,7 @@ export async function insertSupabaseCategoryPhoto(
     return {ok: false, error: 'Faça login no Supabase para enviar fotos.'};
   }
   try {
-    const {error} = await supabase.from('category_photos').insert({
+    const basePayload = {
       id: photo.id,
       user_id: userId,
       author_name: photo.authorName,
@@ -626,7 +630,24 @@ export async function insertSupabaseCategoryPhoto(
       material: photo.material,
       title: photo.title,
       image_url: photo.imageUrl,
+    };
+
+    const {error} = await supabase.from('category_photos').insert({
+      ...basePayload,
+      description: photo.description || '',
+      steps: photo.steps || [],
     });
+
+    if (
+      error &&
+      (error.message.includes('description') || error.message.includes('steps'))
+    ) {
+      const retry = await supabase.from('category_photos').insert(basePayload);
+      return retry.error
+        ? {ok: false, error: retry.error.message}
+        : {ok: true};
+    }
+
     return error ? {ok: false, error: error.message} : {ok: true};
   } catch (err) {
     return {
@@ -919,6 +940,48 @@ export async function analyzeTriageWithAI(
     catalogId: payload.catalogId || 'tr-pet',
     detectedLabel: payload.detectedLabel || 'Material identificado',
     quickTip: payload.quickTip || '',
+  };
+}
+
+export interface CraftExplainAiResult {
+  suggestedTitle: string;
+  explanation: string;
+  materials: string[];
+  steps: string[];
+}
+
+export async function explainCraftWithAI(params: {
+  imageDataUrl?: string;
+  beforeImageUrl?: string;
+  title?: string;
+  material: string;
+  craftCategory?: string;
+  notes?: string;
+}): Promise<CraftExplainAiResult> {
+  const compactMain = params.imageDataUrl
+    ? await prepareAiImageDataUrl(params.imageDataUrl)
+    : undefined;
+  const compactBefore = params.beforeImageUrl
+    ? await prepareAiImageDataUrl(params.beforeImageUrl)
+    : undefined;
+  const response = await fetch('/api/explain-craft-ai', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      ...params,
+      imageDataUrl: compactMain,
+      beforeImageUrl: compactBefore,
+    }),
+  });
+  const payload = await safeReadJsonResponse<Partial<CraftExplainAiResult>>(
+    response,
+    'Não foi possível gerar a explicação com a IA.',
+  );
+  return {
+    suggestedTitle: payload.suggestedTitle || params.title || '',
+    explanation: payload.explanation || '',
+    materials: Array.isArray(payload.materials) ? payload.materials : [],
+    steps: Array.isArray(payload.steps) ? payload.steps : [],
   };
 }
 

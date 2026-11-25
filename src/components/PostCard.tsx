@@ -6,6 +6,7 @@ import {
   Heart,
   MapPin,
   MessageCircle,
+  ZoomIn,
 } from 'lucide-react';
 import {
   BeforeAfterEntry,
@@ -14,6 +15,7 @@ import {
   PostCategory,
 } from '../types/eco';
 import {EcoIllustration} from './EcoIllustrations';
+import {ZoomModalData} from './ImageZoomModal';
 
 interface PostCardProps {
   post: EcoPost;
@@ -23,6 +25,7 @@ interface PostCardProps {
   onToggleSave: (postId: string) => void;
   onOpenDetail: (post: EcoPost) => void;
   onLocateBin: (material: Exclude<MaterialType, MaterialType.ALL>) => void;
+  onZoomPhoto?: (data: ZoomModalData) => void;
 }
 
 const CATEGORY_LABEL: Record<Exclude<PostCategory, PostCategory.ALL>, string> = {
@@ -46,11 +49,39 @@ export const PostCard: React.FC<PostCardProps> = ({
   onToggleSave,
   onOpenDetail,
   onLocateBin,
+  onZoomPhoto,
 }) => {
   const wasteLabel = post.wasteAvoidedKg.toFixed(2).replace('.', ',');
   const beforeImg = post.beforeImageUrl || linkedBeforeAfter?.beforeImageUrl;
   const afterImg = post.customImageUrl || linkedBeforeAfter?.afterImageUrl;
   const hasBeforeAfterPair = Boolean(beforeImg && afterImg);
+  const singleUploadedImg = !hasBeforeAfterPair
+    ? post.customImageUrl || beforeImg
+    : undefined;
+
+  const openPhotoZoom = (
+    primaryUrl: string,
+    primaryLabel?: string,
+    secondaryUrl?: string,
+    secondaryLabel?: string,
+  ) => {
+    if (onZoomPhoto) {
+      onZoomPhoto({
+        imageUrl: primaryUrl,
+        primaryLabel,
+        secondaryImageUrl: secondaryUrl,
+        secondaryLabel,
+        title: post.title,
+        subtitle: `${CATEGORY_LABEL[post.category]} · ${post.material}`,
+        authorLine: `Por ${post.authorName} · ${post.authorNeighborhood}`,
+        explanation: post.summary,
+        materials: post.materialsNeeded,
+        steps: post.steps,
+      });
+    } else {
+      onOpenDetail(post);
+    }
+  };
 
   return (
     <article className="eco-card rounded-3xl p-5 sm:p-6 transition-shadow duration-200 hover:shadow-[0_14px_34px_rgba(2,132,199,0.08)]">
@@ -125,55 +156,102 @@ export const PostCard: React.FC<PostCardProps> = ({
         </p>
       </div>
 
-      {/* Visual Thumbnail / Antes e Depois */}
-      <button
-        type="button"
-        onClick={() => onOpenDetail(post)}
-        className="mt-4 block w-full text-left rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0284c7]"
-        aria-label={`Abrir tutorial completo: ${post.title}`}
-      >
-        {hasBeforeAfterPair ? (
+      {/* Visual Thumbnail / Antes e Depois (Uploaded Photos Clickable for Zoom) */}
+      <div className="mt-4">
+        {hasBeforeAfterPair && beforeImg && afterImg ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <div className="overflow-hidden rounded-2xl border border-[#006398]/25 bg-[#f1f5f9]">
-              <div className="bg-[#e0f2fe] px-3 py-1 text-[11px] font-extrabold text-[#006398]">
-                1. ANTES · Material
+            <button
+              type="button"
+              onClick={() =>
+                openPhotoZoom(
+                  beforeImg,
+                  '1. Antes · Material',
+                  afterImg,
+                  '2. Depois · Peça pronta',
+                )
+              }
+              aria-label={`Ampliar foto antes de ${post.title} e ver explicação`}
+              className="group overflow-hidden rounded-2xl border border-[#006398]/25 bg-[#f1f5f9] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0284c7]"
+            >
+              <div className="flex items-center justify-between bg-[#e0f2fe] px-3 py-1 text-[11px] font-extrabold text-[#006398]">
+                <span>1. ANTES · Material</span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold">
+                  <ZoomIn className="h-3 w-3" aria-hidden="true" />
+                  <span>Zoom</span>
+                </span>
               </div>
               <div className="flex h-52 items-center justify-center p-1.5">
                 <img
                   src={beforeImg}
                   alt={`Antes: ${post.title}`}
                   referrerPolicy="no-referrer"
-                  className="max-h-full max-w-full object-contain rounded-lg"
+                  className="max-h-full max-w-full object-contain rounded-lg transition-transform duration-200 group-hover:scale-[1.03]"
                 />
               </div>
-            </div>
-            <div className="overflow-hidden rounded-2xl border border-[#006948]/25 bg-[#f1f5f9]">
-              <div className="bg-[#d1fae5] px-3 py-1 text-[11px] font-extrabold text-[#006948]">
-                2. DEPOIS · Peça pronta
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                openPhotoZoom(
+                  afterImg,
+                  '2. Depois · Peça pronta',
+                  beforeImg,
+                  '1. Antes · Material',
+                )
+              }
+              aria-label={`Ampliar foto depois de ${post.title} e ver explicação`}
+              className="group overflow-hidden rounded-2xl border border-[#006948]/25 bg-[#f1f5f9] text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0284c7]"
+            >
+              <div className="flex items-center justify-between bg-[#d1fae5] px-3 py-1 text-[11px] font-extrabold text-[#006948]">
+                <span>2. DEPOIS · Peça pronta</span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold">
+                  <ZoomIn className="h-3 w-3" aria-hidden="true" />
+                  <span>Zoom</span>
+                </span>
               </div>
               <div className="flex h-52 items-center justify-center p-1.5">
                 <img
                   src={afterImg}
                   alt={`Depois: ${post.title}`}
                   referrerPolicy="no-referrer"
-                  className="max-h-full max-w-full object-contain rounded-lg"
+                  className="max-h-full max-w-full object-contain rounded-lg transition-transform duration-200 group-hover:scale-[1.03]"
                 />
               </div>
-            </div>
+            </button>
           </div>
+        ) : singleUploadedImg ? (
+          <button
+            type="button"
+            onClick={() => openPhotoZoom(singleUploadedImg)}
+            aria-label={`Ampliar foto de ${post.title} e ver explicação`}
+            className="group relative block w-full text-left rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0284c7]"
+          >
+            <EcoIllustration
+              theme={post.illustration}
+              customImageUrl={singleUploadedImg}
+              alt={post.title}
+              className="w-full transition-transform duration-200 group-hover:scale-[1.01]"
+            />
+            <span className="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-full bg-[#0b1c30]/75 px-3 py-1 text-[11px] font-bold text-white backdrop-blur-sm">
+              <ZoomIn className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Ampliar foto</span>
+            </span>
+          </button>
         ) : (
-          <EcoIllustration
-            theme={post.illustration}
-            customImageUrl={post.customImageUrl || beforeImg}
-            alt={post.title}
-            className={
-              post.customImageUrl || beforeImg
-                ? 'w-full transition-transform duration-200 hover:scale-[1.005]'
-                : 'h-52 sm:h-60 w-full transition-transform duration-200 hover:scale-[1.008]'
-            }
-          />
+          <button
+            type="button"
+            onClick={() => onOpenDetail(post)}
+            className="block w-full text-left rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0284c7]"
+            aria-label={`Abrir tutorial completo: ${post.title}`}
+          >
+            <EcoIllustration
+              theme={post.illustration}
+              alt={post.title}
+              className="h-52 sm:h-60 w-full transition-transform duration-200 hover:scale-[1.008]"
+            />
+          </button>
         )}
-      </button>
+      </div>
 
       {/* Unboxed Quantitative Specs Line */}
       <div className="mt-3.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium text-[#6d7a72] tabular-nums">

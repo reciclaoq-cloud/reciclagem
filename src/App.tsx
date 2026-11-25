@@ -44,6 +44,7 @@ import {
 import {CategoryPhotoUploadModal} from './components/CategoryPhotoUploadModal';
 import {BeforeAfterModal} from './components/BeforeAfterModal';
 import {RawMaterialAiTab} from './components/RawMaterialAiTab';
+import {ImageZoomModal, ZoomModalData} from './components/ImageZoomModal';
 import {isSupabaseConfigured, supabase} from './lib/supabase';
 import {
   deleteSupabaseBeforeAfter,
@@ -151,6 +152,9 @@ export default function App() {
     | {type: 'upload'; craft: CraftSubcategory}
     | {type: 'beforeAfter'}
   >(null);
+  const [zoomModalData, setZoomModalData] = useState<ZoomModalData | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!supabase) return;
@@ -831,6 +835,8 @@ export default function App() {
           catLabel,
           photo.authorName,
           photo.authorNeighborhood,
+          photo.description || '',
+          ...(photo.steps || []),
         ].join(' '),
       );
       return hay.includes(q);
@@ -1489,8 +1495,10 @@ export default function App() {
                       setBeforeAfterModalState({isOpen: true, craft})
                     }
                     categoryPhotos={categoryPhotos}
+                    beforeAfterEntries={beforeAfterEntries}
                     currentUserId={currentUser?.id}
                     onDeleteCategoryPhoto={handleDeleteCategoryPhoto}
+                    onZoomPhoto={setZoomModalData}
                     beforeAfterCount={beforeAfterEntries.length}
                   />
                 )}
@@ -1566,6 +1574,7 @@ export default function App() {
                         onToggleSave={handleToggleSave}
                         onOpenDetail={(p) => setDetailPostId(p.id)}
                         onLocateBin={(mat) => openDropOffMap(mat)}
+                        onZoomPhoto={setZoomModalData}
                       />
                     ))}
                   </div>
@@ -1669,6 +1678,7 @@ export default function App() {
         onToggleSave={handleToggleSave}
         onAddComment={handleAddComment}
         onDeletePost={handleDeletePost}
+        onZoomPhoto={setZoomModalData}
       />
 
       <CreatePostModal
@@ -1749,6 +1759,11 @@ export default function App() {
           }}
         />
       )}
+
+      <ImageZoomModal
+        data={zoomModalData}
+        onClose={() => setZoomModalData(null)}
+      />
     </div>
   );
 }

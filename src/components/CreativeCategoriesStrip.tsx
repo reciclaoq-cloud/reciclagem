@@ -7,13 +7,16 @@ import {
   Scissors,
   Trash2,
   Upload,
+  ZoomIn,
 } from 'lucide-react';
 import {
+  BeforeAfterEntry,
   CategoryPhotoEntry,
   CraftSubcategory,
   IllustrationTheme,
 } from '../types/eco';
 import {THEME_3D_IMAGE} from './EcoIllustrations';
+import {ZoomModalData} from './ImageZoomModal';
 
 export interface CraftCategoryConfig {
   id: CraftSubcategory;
@@ -65,8 +68,10 @@ interface CreativeCategoriesStripProps {
   onOpenUploadForCraft: (craft: CraftSubcategory) => void;
   onOpenBeforeAfter: (craft?: CraftSubcategory) => void;
   categoryPhotos: CategoryPhotoEntry[];
+  beforeAfterEntries?: BeforeAfterEntry[];
   currentUserId?: string;
   onDeleteCategoryPhoto: (photoId: string) => void;
+  onZoomPhoto?: (data: ZoomModalData) => void;
   beforeAfterCount: number;
 }
 
@@ -76,8 +81,10 @@ export const CreativeCategoriesStrip: React.FC<CreativeCategoriesStripProps> = (
   onOpenUploadForCraft,
   onOpenBeforeAfter,
   categoryPhotos,
+  beforeAfterEntries = [],
   currentUserId,
   onDeleteCategoryPhoto,
+  onZoomPhoto,
   beforeAfterCount,
 }) => {
   const activeCategoryConfig = selectedCraft
@@ -273,24 +280,66 @@ export const CreativeCategoriesStrip: React.FC<CreativeCategoriesStripProps> = (
               const canRemove =
                 !photo.userId ||
                 (currentUserId && photo.userId === currentUserId);
+              const linkedBa = beforeAfterEntries.find(
+                (entry) =>
+                  entry.afterImageUrl === photo.imageUrl ||
+                  entry.title.trim().toLowerCase() ===
+                    photo.title.trim().toLowerCase(),
+              );
+              const explanationText =
+                photo.description?.trim() ||
+                linkedBa?.description?.trim() ||
+                `${catLabel} feito com ${photo.material}.`;
+              const photoSteps =
+                photo.steps && photo.steps.length > 0
+                  ? photo.steps
+                  : linkedBa?.steps;
+
+              const handleOpenZoom = () => {
+                onZoomPhoto?.({
+                  imageUrl: photo.imageUrl,
+                  primaryLabel: 'Peça pronta',
+                  secondaryImageUrl: linkedBa?.beforeImageUrl,
+                  secondaryLabel: 'Material antes',
+                  title: photo.title,
+                  subtitle: `${catLabel} · ${photo.material}`,
+                  authorLine: `Por ${photo.authorName} · ${photo.authorNeighborhood}`,
+                  explanation: explanationText,
+                  steps: photoSteps,
+                });
+              };
+
               return (
                 <div
                   key={photo.id}
-                  className="overflow-hidden rounded-2xl border border-[#bccac0]/40 bg-white"
+                  className="flex flex-col overflow-hidden rounded-2xl border border-[#bccac0]/40 bg-white transition-shadow hover:shadow-[0_10px_24px_rgba(2,132,199,0.08)]"
                 >
-                  <div className="relative flex h-48 items-center justify-center overflow-hidden bg-[#f1f5f9]">
+                  <button
+                    type="button"
+                    onClick={handleOpenZoom}
+                    aria-label={`Ampliar foto ${photo.title} e ver explicação de como fazer`}
+                    className="group relative flex h-48 w-full items-center justify-center overflow-hidden bg-[#f1f5f9] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0284c7]"
+                  >
                     <img
                       src={photo.imageUrl}
                       alt={photo.title}
                       referrerPolicy="no-referrer"
-                      className="max-h-full max-w-full object-contain"
+                      className="max-h-full max-w-full object-contain transition-transform duration-200 group-hover:scale-[1.03]"
                     />
-                  </div>
-                  <div className="p-3">
+                    <span className="absolute bottom-2 right-2 inline-flex items-center gap-1 rounded-full bg-[#0b1c30]/75 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm">
+                      <ZoomIn className="h-3 w-3" aria-hidden="true" />
+                      <span>Zoom</span>
+                    </span>
+                  </button>
+                  <div className="flex flex-1 flex-col p-3">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-xs font-bold text-[#0b1c30] line-clamp-1">
+                      <button
+                        type="button"
+                        onClick={handleOpenZoom}
+                        className="text-left text-xs font-bold text-[#0b1c30] hover:text-[#006948] line-clamp-1"
+                      >
                         {photo.title}
-                      </p>
+                      </button>
                       {canRemove && (
                         <button
                           type="button"
@@ -302,12 +351,24 @@ export const CreativeCategoriesStrip: React.FC<CreativeCategoriesStripProps> = (
                         </button>
                       )}
                     </div>
-                    <p className="mt-1 text-[11px] text-[#6d7a72] truncate">
+                    <p className="mt-0.5 text-[11px] text-[#6d7a72] truncate">
                       {catLabel} · {photo.material}
                     </p>
-                    <p className="mt-0.5 text-[11px] font-medium text-[#006948] truncate">
-                      Por {photo.authorName} · {photo.authorNeighborhood}
+                    <p className="mt-1.5 text-[11px] text-[#3d4a42] leading-snug line-clamp-2">
+                      {explanationText}
                     </p>
+                    <div className="mt-auto pt-2 flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-medium text-[#006948] truncate">
+                        Por {photo.authorName} · {photo.authorNeighborhood}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleOpenZoom}
+                        className="shrink-0 text-[11px] font-bold text-[#006398] hover:underline"
+                      >
+                        Como fazer
+                      </button>
+                    </div>
                   </div>
                 </div>
               );

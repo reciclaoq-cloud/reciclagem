@@ -1,5 +1,5 @@
 import React, {useEffect, useRef, useState} from 'react';
-import {ArrowLeftRight, ImagePlus, Upload, X} from 'lucide-react';
+import {ArrowLeftRight, ImagePlus, Sparkles, Upload, X} from 'lucide-react';
 import {
   BeforeAfterEntry,
   CategoryPhotoEntry,
@@ -8,6 +8,7 @@ import {
 } from '../types/eco';
 import {CRAFT_CATEGORIES} from './CreativeCategoriesStrip';
 import {compressImageFile} from '../utils/imageUpload';
+import {explainCraftWithAI} from '../services/ecoRepository';
 
 interface CategoryPhotoUploadModalProps {
   isOpen: boolean;
@@ -50,10 +51,12 @@ export const CategoryPhotoUploadModal: React.FC<
   >(MaterialType.PET);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [stepsText, setStepsText] = useState('');
   const [afterImageUrl, setAfterImageUrl] = useState<string>('');
   const [beforeImageUrl, setBeforeImageUrl] = useState<string>('');
   const [errorMsg, setErrorMsg] = useState('');
   const [isReading, setIsReading] = useState(false);
+  const [isGeneratingAi, setIsGeneratingAi] = useState(false);
 
   const mainInputRef = useRef<HTMLInputElement>(null);
   const beforeInputRef = useRef<HTMLInputElement>(null);
@@ -91,6 +94,44 @@ export const CategoryPhotoUploadModal: React.FC<
     }
   };
 
+  const handleGenerateExplanationWithAI = async () => {
+    if (!afterImageUrl && !beforeImageUrl && !title.trim()) {
+      setErrorMsg(
+        'Envie uma foto ou digite o título da peça antes de gerar a explicação com IA.',
+      );
+      return;
+    }
+    setIsGeneratingAi(true);
+    setErrorMsg('');
+    try {
+      const result = await explainCraftWithAI({
+        imageDataUrl: afterImageUrl || undefined,
+        beforeImageUrl: beforeImageUrl || undefined,
+        title: title.trim(),
+        material,
+        craftCategory,
+        notes: description.trim(),
+      });
+      if (!title.trim() && result.suggestedTitle) {
+        setTitle(result.suggestedTitle);
+      }
+      if (result.explanation) {
+        setDescription(result.explanation);
+      }
+      if (result.steps.length > 0) {
+        setStepsText(result.steps.join('\n'));
+      }
+    } catch (err) {
+      setErrorMsg(
+        err instanceof Error
+          ? err.message
+          : 'Não foi possível gerar a explicação com IA.',
+      );
+    } finally {
+      setIsGeneratingAi(false);
+    }
+  };
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!afterImageUrl) {
@@ -102,6 +143,22 @@ export const CategoryPhotoUploadModal: React.FC<
       return;
     }
 
+    const parsedSteps = stepsText
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (!description.trim() && parsedSteps.length === 0) {
+      setErrorMsg(
+        'Informe a explicação de como fazer (escreva ou clique em "Gerar explicação com IA").',
+      );
+      return;
+    }
+
+    const finalDescription =
+      description.trim() ||
+      `Como fazer: ${parsedSteps.slice(0, 2).join(' ')}`;
+
     const photo: CategoryPhotoEntry = {
       id: `cat-photo-${Date.now()}`,
       authorName,
@@ -109,6 +166,8 @@ export const CategoryPhotoUploadModal: React.FC<
       craftCategory,
       material,
       title: title.trim(),
+      description: finalDescription,
+      steps: parsedSteps,
       imageUrl: afterImageUrl,
       createdAt: 'Agora mesmo',
     };
@@ -120,15 +179,10 @@ export const CategoryPhotoUploadModal: React.FC<
             craftCategory,
             material,
             title: title.trim(),
-            description:
-              description.trim() ||
-              `Transformação de ${material} publicada em ${
-                CRAFT_CATEGORIES.find((c) => c.id === craftCategory)?.label ||
-                craftCategory
-              }.`,
+            description: finalDescription,
             beforeImageUrl,
             afterImageUrl,
-            steps: [],
+            steps: parsedSteps,
             suggestions: [],
           }
         : undefined,
@@ -136,6 +190,7 @@ export const CategoryPhotoUploadModal: React.FC<
 
     setTitle('');
     setDescription('');
+    setStepsText('');
     setAfterImageUrl('');
     setBeforeImageUrl('');
     setErrorMsg('');
@@ -163,7 +218,7 @@ export const CategoryPhotoUploadModal: React.FC<
               Enviar foto do que pode ser feito
             </h2>
             <p className="mt-0.5 text-xs text-[#6d7a72]">
-              Mostre à comunidade o resultado real feito com material reciclável ou sucata.
+              Mostre o resultado feito com sucata e explique como fazer (por sua conta ou gerado com IA).
             </p>
           </div>
           <button
@@ -290,6 +345,57 @@ export const CategoryPhotoUploadModal: React.FC<
             )}
           </div>
 
+          {/* Required Explanation (User or AI) */}
+          <div className="rounded-2xl border border-[#006948]/25 bg-[#f8f9ff] p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label
+                htmlFor="cat-upload-explanation"
+                className="block text-xs font-bold text-[#0b1c30]"
+              >
+                Explicação de como fazer (obrigatória)
+              </label>
+              <button
+                type="button"
+                disabled={isGeneratingAi || isReading}
+                onClick={() => void handleGenerateExplanationWithAI()}
+                className="inline-flex min-h-[34px] items-center gap-1.5 rounded-full bg-[#e6f7f1] border border-[#006948]/30 px-3.5 text-xs font-bold text-[#006948] hover:bg-[#d1fae5] disabled:opacity-60"
+              >
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>
+                  {isGeneratingAi
+                    ? 'Gerando explicação...'
+                    : 'Gerar explicação com IA'}
+                </span>
+              </button>
+            </div>
+
+            <textarea
+              id="cat-upload-explanation"
+              rows={3}
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Explique o que foi usado e como montar a peça (ou clique em Gerar explicação com IA)..."
+              className="w-full rounded-2xl border border-[#e2e8f0] bg-white p-3 text-xs sm:text-sm text-[#0b1c30] focus:border-[#0ea5e9] focus:outline-none"
+            />
+
+            <div>
+              <label
+                htmlFor="cat-upload-steps"
+                className="block text-[11px] font-semibold text-[#3d4a42] mb-1"
+              >
+                Passo a passo (um passo por linha — preenchido pela IA ou por você)
+              </label>
+              <textarea
+                id="cat-upload-steps"
+                rows={3}
+                value={stepsText}
+                onChange={(e) => setStepsText(e.target.value)}
+                placeholder={'1º passo: higienize o material\n2º passo: corte e monte a peça\n3º passo: dê o acabamento'}
+                className="w-full rounded-2xl border border-[#e2e8f0] bg-white p-3 text-xs text-[#0b1c30] focus:border-[#0ea5e9] focus:outline-none"
+              />
+            </div>
+          </div>
+
           {/* Optional Before Photo to automatically populate Before & After DB */}
           <div className="rounded-2xl border border-[#006948]/25 bg-[#e6f7f1]/45 p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -323,27 +429,20 @@ export const CategoryPhotoUploadModal: React.FC<
             </div>
 
             {beforeImageUrl && (
-              <div className="mt-3 space-y-2">
-                <div className="flex h-48 items-center justify-center overflow-hidden rounded-xl border border-[#bccac0]/40 bg-[#f1f5f9] p-1.5">
-                  <img
-                    src={beforeImageUrl}
-                    alt="Prévia do material antes"
-                    className="max-h-full max-w-full object-contain rounded-lg"
-                  />
-                </div>
-                <input
-                  type="text"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Descreva rapidamente como transformou o material (opcional)"
-                  className="min-h-[40px] w-full rounded-xl border border-[#e2e8f0] bg-white px-3 text-xs text-[#0b1c30]"
+              <div className="mt-3 flex h-48 items-center justify-center overflow-hidden rounded-xl border border-[#bccac0]/40 bg-[#f1f5f9] p-1.5">
+                <img
+                  src={beforeImageUrl}
+                  alt="Prévia do material antes"
+                  className="max-h-full max-w-full object-contain rounded-lg"
                 />
               </div>
             )}
           </div>
 
           {errorMsg && (
-            <p className="text-xs font-semibold text-[#ba1a1a]">{errorMsg}</p>
+            <p className="text-xs font-semibold text-[#ba1a1a]" role="alert">
+              {errorMsg}
+            </p>
           )}
 
           <div className="flex items-center justify-end gap-2 pt-2">
@@ -356,7 +455,7 @@ export const CategoryPhotoUploadModal: React.FC<
             </button>
             <button
               type="submit"
-              disabled={isReading}
+              disabled={isReading || isGeneratingAi}
               className="eco-cta-gradient min-h-[42px] rounded-full px-6 text-xs font-bold text-white disabled:opacity-60"
             >
               {isReading ? 'Processando...' : 'Salvar foto na categoria'}
